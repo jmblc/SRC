@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Server debug="0" port="8081" shutdown="SHUTDOWN">
+
+	<GlobalNamingResources>
+		
+		<Resource name="jdbc/hcontacts" auth="Container"
+			type="javax.sql.DataSource"
+			driverClassName="oracle.jdbc.OracleDriver" 
+			username="U_HCONTACTS"
+			password="U_HCONTACTS"
+			url="jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=rigeged1.svc.ext.tdc)(PORT=1522)))(CONNECT_DATA=(SERVICE_NAME = RIGEGED1)))"
+		/> 
+		<!-- 
+		<Resource name="jdbc/du" auth="Container"
+		 			type="javax.sql.DataSource"
+		 			driverClassName="oracle.jdbc.OracleDriver" 
+		 			username="U_DU"
+		 			password="U_DU"
+		 			url="jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=rigeged1.svc.ext.tdc)(PORT=1522)))(CONNECT_DATA=(SERVICE_NAME = RIGEGED1)))" 
+		 />
+			
+		<Resource name="jdbc/ged_histo" auth="Container"
+			type="javax.sql.DataSource"
+	        driverClassName="oracle.jdbc.OracleDriver"
+	        username="ged"
+	        password="ged"
+			url="jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=rac-node1-vip.priv.services-fm.net)(PORT=1521)))(CONNECT_DATA=(SERVICE_NAME = HISTO)(INSTANCE_NAME=HISTO1)))" 
+		/>			
+
+		<Resource name="jdbc/plaquettes" auth="Container"
+                     type="javax.sql.DataSource"
+                     driverClassName="oracle.jdbc.OracleDriver"
+                     username="U_PLAQUETTE"
+                     password="U_PLAQUETTE"
+					 url="jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=rigeged1.svc.ext.tdc)(PORT=1522)))(CONNECT_DATA=(SERVICE_NAME = RIGEGED1)))" 
+		/>
+				
+		<Resource name="jdbc/vip" auth="Container"
+			type="javax.sql.DataSource"
+	        driverClassName="oracle.jdbc.OracleDriver"
+	        username="U_VIP"
+	        password="U_VIP"
+			url="jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=rigeged1.svc.ext.tdc)(PORT=1522)))(CONNECT_DATA=(SERVICE_NAME = RIGEGED1)))"
+		/>
+		
+		<Resource name="jdbc/contentieux" auth="Container"
+			type="javax.sql.DataSource"
+	        driverClassName="oracle.jdbc.OracleDriver"
+	        username="u_contentieux"
+	        password="u_contentieux"
+			url="jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=rigeged1.svc.ext.tdc)(PORT=1522)))(CONNECT_DATA=(SERVICE_NAME = RIGEGED1)))" 
+		/>
+		
+	    <Resource name="jdbc/annuaire" auth="Container"
+			type="javax.sql.DataSource"
+	        driverClassName="oracle.jdbc.OracleDriver"
+	        username="H_ANNUAIRE"
+	        password="H_ANNUAIRE"
+			url="jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=rigeged1.svc.ext.tdc)(PORT=1522)))(CONNECT_DATA=(SERVICE_NAME = RIGEGED1)))" 
+		/>
+		-->
+		
+	</GlobalNamingResources>
+
+	<Service name="Tomcat-Apache">
+
+		<Connector port="8080" 
+				   minProcessors="5" 
+				   maxProcessors="75"	
+				   enableLookups="true" 
+				   redirectPort="8443" 
+				   acceptCount="100" 
+				   debug="0" 
+				   connectionTimeout="20000" 
+				   useURIValidationHack="false"	
+				   disableUploadTimeout="true" />
+		
+		<Engine appBase="D:\Mes Documents\Sources\juno\workspace\Intranet IContacts\WebContent" 
+				debug="1" defaultHost="localhost" name="Tomcat-Apache">
+
+
+			<Host appBase="D:\Mes Documents\Sources\juno\workspace\Intranet IContacts\WebContent" 
+				  debug="0" name="localhost" unpackWARs="true"> 
+
+
+			<Realm className="org.apache.catalina.realm.DataSourceRealm" debug="99"
+					dataSourceName="jdbc/hcontacts" 
+					userTable="H_ANNUAIRE.T_UTILISATEURS_UTL" userNameCol="UTL_LOGIN" userCredCol="UTL_PASSWORD" 
+					userRoleTable="H_ANNUAIRE.T_ROLESAPPLICATIONSTOMCAT_RTC" roleNameCol="UTL_ROLE" />
+
+
+				<Context path="/IContacts" 
+						 reloadable="true" 
+						 docBase="D:\Mes Documents\Sources\juno\workspace\Intranet IContacts\WebContent" 
+						 workDir="D:\Mes Documents\Sources\juno\workspace\Intranet IContacts\work">
+						 
+					<ResourceLink name="jdbc/hcontacts" global="jdbc/hcontacts" type="javax.sql.DataSource" />	
+					<ResourceLink name="jdbc/ged_histo" global="jdbc/ged_histo" type="javax.sql.DataSource"/>	 
+					
+					<Environment name="hcontact_user" value="U_HCONTACTS"  type="java.lang.String" />
+					<Environment name="hcontact_password"  value="U_HCONTACTS" type="java.lang.String" />			
+ 				    <Environment name="hcontact_url" value="jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=rigeged1.svc.ext.tdc)(PORT=1522)))(CONNECT_DATA=(SERVICE_NAME = RIGEGED1)))" type="java.lang.String" />  
+				 
+				 	<Environment name="hcontact_max_nbr_fiches_recherchees" value="250" type="java.lang.Integer" />
+					<Environment name="hcontact_Max_Rows" value="100" type="java.lang.Integer" />
+	
+					<Environment name="hcontact_entite_SansObjet" value="122" type="java.lang.String" />
+					<Environment name="hcontact_TYPE_ASSURE_HB" value="148" type="java.lang.String" />
+					<Environment name="hcontact_TYPE_PS" value="152" type="java.lang.String" />
+					
+					<Environment name="hcontact_TYPE_ETAB_PUBLIC" value="Public" type="java.lang.String" />
+					<Environment name="hcontact_TYPE_ETAB_PRIVE"  value="Prive" type="java.lang.String" />
+					
+					<!-- Configuration H.Courrier -->
+					<Environment name="hcourrier_MotDePasseSousMotif" value="1301" type="java.lang.String" />
+            
+		            <Environment name="hcourrier_SORTANT" value="Sortant" type="java.lang.String" />
+		            <Environment name="hcourrier_ENTRANT" value="Entrant" type="java.lang.String" />
+		            
+		            <Environment name="hcourrier_MediaCourriel" value="Courriel" type="java.lang.String" />
+		            <Environment name="hcourrier_MediaAppel" value="Appel" type="java.lang.String" />
+		            <Environment name="hcourrier_MediaFax" value="Fax" type="java.lang.String" />
+		            
+		            <Environment name="hcourrier_AppelMotif" value="4" type="java.lang.String" /> 
+		            <Environment name="hcourrier_MotDePasseSousMotif" value="1301" type="java.lang.String" />
+		            <Environment name="hcourrier_PECSousMotif" value="5" type="java.lang.String" />
+		            <Environment name="hcourrier_CourrielMotif" value="3" type="java.lang.String" />
+		            <Environment name="hcourrier_FaxMotif" value="2" type="java.lang.String" />
+		            <Environment name="hcourrier_ProcedureMailSousMotif" value="1802" type="java.lang.String" />
+		            <Environment name="hcourrier_DemandePECMotif" value="5" type="java.lang.String" />
+		            
+		            <Environment name="hcourrier_DemandePECGEDCode" value="5" type="java.lang.String" />
+		            <Environment name="hcourrier_prioriteDemandePEC" value="10" type="java.lang.String" />
+		            
+		            <Environment name="hcourrier_userROBOT" value= "ROBOT" type="java.lang.String" />
+		            <Environment name="hcourrier_siteMARSEILLE"  value= "MARSEILLE" type="java.lang.String" />
+		            <Environment name="hcourrier_TCOHContacts"  value= "14" type="java.lang.String" />
+		            
+		            <Environment name="hcourrier_StatutATraiter" value="1" type="java.lang.String" />
+		            <Environment name="hcourrier_StatutEnvoye" value="5" type="java.lang.String" />
+		            <Environment name="hcourrier_StatutAttente" value="6" type="java.lang.String" />
+		            <Environment name="hcourrier_StatutAEmettre" value="13" type="java.lang.String" />
+		            <Environment name="hcourrier_StatutAnnule" value="8" type="java.lang.String" />
+		            
+		            <Environment name="hcourrier_PecV" value="PecV" type="java.lang.String" />
+		            <Environment name="hcourrier_PecDemande" value="demandePEC" type="java.lang.String" />
+		            <Environment name="hcourrier_EvtMotDePasseWeb" value="passWeb" type="java.lang.String" />
+		            <Environment name="hcourrier_CodeFicheTransfert" value="84" type="java.lang.String" />
+		            <Environment name="hcourrier_EvenementAppel" value="4" type="java.lang.String" />
+		            <Environment name="hcourrier_TypeDossierHContact" value="150" type="java.lang.String" />
+							
+					<Environment name="evenement_sous_motif_piece_manquante_id" value="98" type="java.lang.String" />		
+							
+					<!-- Serveur SMTP -->
+					<Environment name="hcontact_serveur_smtp" value="smtp.svc.ext.tdc" type="java.lang.String" />
+					
+				</Context>
+<!-- 	
+				<Context path="/PLAQUETTES" reloadable="true" 
+						 docBase="D:\Mes Documents\Sources\juno\workspace\Intranet PLAQUETTES\WebContent" 
+						 workDir="D:\Mes Documents\Sources\juno\workspace\Intranet PLAQUETTES\work">
+						 
+					<Environment description="Important pour la connexion THIN" name="user_u_plaquette" type="java.lang.String" value="U_PLAQUETTE"/>
+					<Environment description="Important pour la connexion THIN" name="password_u_plaquette" type="java.lang.String" value="U_PLAQUETTE"/>			
+				    <Environment description="Important pour la connexion THIN" name="password_application_plaquette" type="java.lang.String" value="jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=rigeged1.svc.ext.tdc)(PORT=1522)))(CONNECT_DATA=(SERVICE_NAME = RIGEGED1)))" />			
+		
+					<ResourceLink name="jdbc/plaquettes" global="jdbc/plaquettes" type="javax.sql.DataSource" />								
+				</Context>
+	
+				<Context path="/VIP" reloadable="true" docBase="D:\Mes Documents\Sources\juno\workspace\Intranet VIP\WebContent" 
+					 	 workDir="D:\Mes Documents\Sources\juno\workspace\Intranet VIP\work">		
+					 	 					
+						<ResourceLink name="jdbc/vip" global="jdbc/vip" type="javax.sql.DataSource" />	
+				</Context>
+
+				<Context path="/Contentieux" reloadable="true" 
+				         docBase="D:\Mes Documents\Sources\juno\workspace\Intranet Contentieux\WebContent" 
+						 workDir="D:\Mes Documents\Sources\juno\workspace\Intranet Contentieux\work">
+						 
+						<ResourceLink name="jdbc/contentieux" global="jdbc/contentieux" type="javax.sql.DataSource"/>
+						            		
+				</Context>	
+				
+				<Context path="/ANNUAIRE" reloadable="true" 
+						docBase="D:\Mes Documents\Sources\juno\workspace\Intranet ANNUAIRE\WebContent" 
+						workDir="D:\Mes Documents\Sources\juno\workspace\Intranet ANNUAIRE\work" >
+						
+					<Environment description="Important pour la connexion THIN" name="user_hannuaire" type="java.lang.String" value="H_ANNUAIRE"/>			
+					<Environment description="Important pour la connexion THIN" name="password_hannuaire" type="java.lang.String" value="H_ANNUAIRE"/>			
+					<Environment description="Important pour la connexion THIN" name="url_hannuaire" type="java.lang.String" value="jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=rigeged1.svc.ext.tdc)(PORT=1522)))(CONNECT_DATA=(SERVICE_NAME = RIGEGED1)))"/>			
+					<ResourceLink name="jdbc/annuaire" global="jdbc/annuaire" type="javax.sql.DataSource" />
+													
+				</Context>				
+	
+				<Context path="/DossierUnique" 
+						 reloadable="true" 
+						 docBase="D:\Mes Documents\Sources\juno\workspace\Intranet DossierUnique\WebContent" 
+						 workDir="D:\Mes Documents\Sources\juno\workspace\Intranet DossierUnique\work">
+						 
+					<ResourceLink name="jdbc/du" global="jdbc/du" type="javax.sql.DataSource" />	
+					<ResourceLink name="jdbc/ged_histo" global="jdbc/ged_histo" type="javax.sql.DataSource"/>	 
+					<Environment name="du_max_nb_results" value="200" type="java.lang.Integer" />
+	            	<Environment name="evenement_sous_motif_piece_manquante_id" value="98" type="java.lang.String" />
+	            	
+				</Context>
+-->	
+			</Host>
+
+		</Engine>
+
+	</Service>
+</Server>

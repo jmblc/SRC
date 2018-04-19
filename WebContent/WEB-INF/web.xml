@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE web-app PUBLIC "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN" "http://java.sun.com/dtd/web-app_2_3.dtd">
+<web-app> 
+
+	<display-name>Application H.Contacts</display-name>
+	<description>Intranet de GRC</description>
+ 
+	<context-param>
+ 		<param-name>Auteur</param-name>
+ 		<param-value>iGestion</param-value>
+	</context-param>
+
+	<listener>
+	  <listener-class>fr.igestion.crm.HContactsContextListener</listener-class>
+	</listener>
+	
+	<listener>
+	  <listener-class>fr.igestion.crm.HContactsSessionListener</listener-class>
+	</listener>
+
+	<servlet>
+		<servlet-name>action</servlet-name>
+		<servlet-class>org.apache.struts.action.ActionServlet</servlet-class>
+		<init-param>
+			<param-name>config</param-name>
+			<param-value>/WEB-INF/struts-config.xml</param-value>
+		</init-param>
+		<load-on-startup>1</load-on-startup>
+	</servlet>
+	
+	<servlet> 
+		<servlet-name>AfficherPlaquetteGarantie</servlet-name> 
+		<servlet-class>fr.igestion.crm.servlet.AfficherPlaquetteGarantie</servlet-class> 
+	</servlet> 
+	
+	<servlet> 
+		<servlet-name>ReadStreamServlet</servlet-name> 
+		<servlet-class>fr.igestion.crm.servlet.ReadStreamServlet</servlet-class> 
+	</servlet> 	
+	
+	<servlet> 
+		<servlet-name>GetStatistiquesExcel</servlet-name> 
+		<servlet-class>fr.igestion.crm.servlet.StatistiquesExcel</servlet-class> 
+	</servlet> 	
+	
+	<servlet> 
+		<servlet-name>LireDocument</servlet-name> 
+		<servlet-class>fr.igestion.crm.servlet.LireDocument</servlet-class> 
+	</servlet> 
+	
+	<servlet-mapping>
+		<servlet-name>action</servlet-name>
+		<url-pattern>*.do</url-pattern>
+	</servlet-mapping>	
+	
+	<servlet-mapping>
+		<servlet-name>action</servlet-name>
+		<url-pattern>*.go</url-pattern>
+	</servlet-mapping>	
+
+	<servlet-mapping> 
+		<servlet-name>AfficherPlaquetteGarantie</servlet-name> 
+		<url-pattern>/AfficherPlaquetteGarantie.show</url-pattern> 
+	</servlet-mapping> 
+	
+	<servlet-mapping> 
+		<servlet-name>ReadStreamServlet</servlet-name> 
+		<url-pattern>/LireStream.show</url-pattern> 
+	</servlet-mapping> 	
+	
+	<servlet-mapping> 
+		<servlet-name>GetStatistiquesExcel</servlet-name> 
+		<url-pattern>/GetStatistiquesExcel.show</url-pattern> 
+	</servlet-mapping> 
+
+	<servlet-mapping> 
+		<servlet-name>LireDocument</servlet-name> 
+		<url-pattern>/document.show</url-pattern> 
+	</servlet-mapping> 
+
+
+	<session-config> 
+		<session-timeout>120</session-timeout>
+	</session-config> 
+
+    <welcome-file-list>
+		<welcome-file>index.jsp</welcome-file>
+	</welcome-file-list>  
+	
+	<taglib>
+		<taglib-uri>/WEB-INF/struts-bean</taglib-uri>
+		<taglib-location>/WEB-INF/struts-bean.tld</taglib-location>
+	</taglib>
+	<taglib>
+		<taglib-uri>/WEB-INF/struts-html</taglib-uri>
+		<taglib-location>/WEB-INF/struts-html.tld</taglib-location>
+	</taglib>
+	<taglib>
+		<taglib-uri>/WEB-INF/struts-logic</taglib-uri>
+		<taglib-location>/WEB-INF/struts-logic.tld</taglib-location>
+	</taglib>
+	<taglib>
+		<taglib-uri>/WEB-INF/struts-nested</taglib-uri>
+		<taglib-location>/WEB-INF/struts-nested.tld</taglib-location>
+	</taglib>
+	<taglib>
+		<taglib-uri>/WEB-INF/struts-tiles</taglib-uri>
+		<taglib-location>/WEB-INF/struts-tiles.tld</taglib-location>
+	</taglib>
+	
+	<security-constraint>
+		<web-resource-collection>
+		<web-resource-name>Non proteges, mais c'est voulu...</web-resource-name>
+		<url-pattern>/login/killerSession.jsp</url-pattern>
+		<url-pattern>*.go</url-pattern>
+		</web-resource-collection>
+	</security-constraint> 			
+ 
+   <security-constraint>
+        <display-name>SECURITE</display-name>
+         <web-resource-collection>
+            <web-resource-name>Ensemble des ressources proteges</web-resource-name>
+            <url-pattern>*.do</url-pattern>
+           <url-pattern>*.jsp</url-pattern>
+            <http-method>GET</http-method>
+            <http-method>POST</http-method>                  
+        </web-resource-collection>
+      
+      	<auth-constraint> 
+			<role-name>AUTORISE</role-name>
+		</auth-constraint>  
+		            
+    </security-constraint>
+     
+    <login-config>
+        <auth-method>FORM</auth-method>
+        <form-login-config>
+            <form-login-page>/login/checklogin.jsp</form-login-page>
+            <form-error-page>/login/login_error.jsp</form-error-page>
+        </form-login-config>
+    </login-config>
+
+    <security-role>
+        <description>AUTORISE</description>
+        <role-name>AUTORISE</role-name>
+    </security-role>
+   
+ 
+</web-app>

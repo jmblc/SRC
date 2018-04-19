@@ -1,0 +1,148 @@
+<project name="HContacts" default="dist-All" basedir=".">
+
+	<typedef resource="org/tigris/subversion/svnant/svnantlib.xml" classpath="svnant.jar" />	
+	
+<path id="compile.classpath">
+	<pathelement location="${oracle.home}/jdbc/lib/ojdbc14.zip"/>
+	<pathelement location="${junit.home}/junit.jar"/>
+	<pathelement location="${log4j.home}/dist/lib/${log4j.jar}"/>
+	<pathelement location="${iText.home}/${iText.jar}"/>
+	<pathelement location="${jxl.home}/${jxl.jar}"/>
+	<pathelement location="${javamail.home}/${javamail.jar}"/>
+	<pathelement location="${build}"/>
+	<pathelement location="${build}/classes"/>
+	<pathelement location="${build}/src"/>
+	<fileset dir="${struts.home}/lib">
+	      <include name="**/*.jar"/>
+	</fileset>
+	<fileset dir="${tomcat.home}/bin"> 
+		          <include name="*.jar"/> 
+	</fileset>
+	<fileset dir="${tomcat.home}/lib">
+		     <include name="**/*.jar"/>
+	</fileset>
+    <fileset dir="${java.home}/lib">
+      <include name="**/*.jar"/>
+    </fileset>
+</path>
+	
+<target name="clean" >
+    <delete dir="${build}"/>
+	<delete dir="${dist}/${version}"/>
+</target>
+	
+<target name="prepare-web">
+	
+ 	    <delete dir="${build}"/>
+	
+		<svn username="${svn.user}" password="${svn.password}">
+			<export srcUrl="${svn.url}/${svn.project.name}" 
+					destPath="${build}/${svn.project.name}" 
+					revision="${svn.tag}" />
+			
+		</svn> 
+		
+	    <mkdir  dir="${build}/websrc" />
+	    <mkdir  dir="${build}/src" />
+	    <mkdir  dir="${build}/classes" />
+ 	    <mkdir  dir="${build}/webclasses" />
+		<mkdir  dir="${build}/webapp" />
+	
+	    <copy todir="${build}/src">
+	      <fileset dir="${build}/${svn.project.name}/JavaSource">
+	      	<include name="**/*.java" />	
+	      	<include name="**/*.properties" />
+	      	<include name="hosta/*.properties" />
+	       </fileset>
+	    </copy> 
+	    <copy todir="${build}/webapp">
+		      <fileset dir="${build}/${svn.project.name}/WebContent">
+		      	<include name="**/*.*" />	
+		      	<exclude name="**/*.jsp" />
+		      	<include name="WEB-INF/*.*" />
+		       </fileset>
+	    </copy>
+	   	<delete dir="${build}/htdocs/WEB-INF"/>    
+		<copy todir="${build}/webapp">
+			 <fileset dir="${build}/${svn.project.name}/WebContent">
+			   	<include name="**/*.jsp" />	
+			 	<include name="**/*.jar" />
+			 	<include name="**/*.xml" />
+			 	<include name="**/*.tld" />
+			 	<include name="**/*.txt" />
+			 	<include name="**/*.inc" />
+			 </fileset>
+		</copy>    
+		<!-- <mkdir  dir="${build}/webapp/WEB-INF/classes" /> -->
+		<delete dir="${build}/${svn.project.name}"/>
+</target>
+	
+<target name="compile-web">
+     <javac srcdir="${build}/src"
+     	      encoding="ISO-8859-1"
+	          destdir="${build}/classes"
+	          debug="${compile.debug}"
+	     	  deprecation="${compile.deprecation}"
+	          optimize="${compile.optimize}"
+     			target="1.6">
+	        <classpath refid="compile.classpath"/>
+    </javac>
+    <copy todir="${build}/classes">
+      <fileset dir="${build}/src">
+      	<include name="**/*.properties" />	
+      </fileset>
+    </copy>     
+	<javac srcdir="${build}/websrc"
+		   encoding="ISO-8859-1"	
+	       destdir="${build}/webclasses"
+	       debug="${compile.debug}"
+	   	   deprecation="${compile.deprecation}"
+		   optimize="${compile.optimize}">
+		   <classpath refid="compile.classpath"/>
+	</javac>
+    <delete dir="${build}/src"/>
+	<delete dir="${build}/websrc"/> 
+	<delete dir="${build}/webclasses"/> 
+</target>	
+
+<target name="jspc-web"> 
+		<taskdef classname="org.apache.jasper.JspC" name="jasper2"/> 
+	    <jasper2  package= "${jsp.package}"
+	    		 validateXml="false" 
+	             uriroot="${build}/webapp" 
+	             webXmlFragment="${build}/webapp/WEB-INF/generated_web.xml" 
+	             outputDir="${build}/websrc" /> 
+		<loadfile property="webinc.xml" srcFile="${build}/webapp/WEB-INF/generated_web.xml" /> 
+		<javac srcdir="${build}/websrc"
+		       destdir="${build}/webapp/WEB-INF/classes"
+		       debug="${compile.debug}"
+		   	   deprecation="${compile.deprecation}"
+			   optimize="${compile.optimize}">
+			   <classpath refid="compile.classpath"/>
+		</javac>
+</target> 
+	
+<target name="dist-web"> 
+	<mkdir dir="${dist}/${ant.project.name}/${version}"/>
+	    <war destfile="${dist}/${ant.project.name}/${version}/${app.war}" 
+	    	 basedir="${build}/webapp"
+	    	 webxml="${build}/webapp/WEB-INF/web.xml">
+	         <classes dir="${build}/classes"/>
+	    </war> 
+		<!-- <delete dir="${build}"/> -->
+</target> 	
+	
+<target name="dist-All">
+	<echo message="The Project name is: ${ant.project.name}"/>
+    <echo message="The Java version is: ${ant.java.version}"/>
+    <echo message="The Java home directory is: ${java.home}"/>
+	<antcall target="clean"/>
+	<antcall target="prepare-web"/>
+	<antcall target="compile-web"/>
+	<!-- <antcall target="jspc-web"/> -->
+	<antcall target="dist-web"/>
+</target>	
+	
+</project>
+
+	

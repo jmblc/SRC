@@ -1,0 +1,474 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE struts-config PUBLIC "-//Apache Software Foundation//DTD Struts Configuration 1.1//EN"
+                               "http://jakarta.apache.org/struts/dtds/struts-config_1_1.dtd">
+<struts-config>
+
+<data-sources/>
+
+<form-beans>
+
+	<form-bean name="AccueilForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 	
+		<form-property name="campagne_id" type="java.lang.String"/> 	
+		<form-property name="modeCreation" type="java.lang.String"/>
+   	</form-bean>
+   	   	
+	<form-bean name="FicheAppelForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>
+		<form-property name="teleacteur_id" type="java.lang.String"/> 
+		<form-property name="id_objet" type="java.lang.String"/>
+		<form-property name="cle_recherche" type="java.lang.String"/>				
+		<form-property name="campagne_id" type="java.lang.String"/>
+		<form-property name="mutuelle_id" type="java.lang.String"/>  
+		<form-property name="appelant_code" type="java.lang.String"/>
+		<form-property name="appelant_libelle" type="java.lang.String"/>	  
+		<form-property name="motif_id" type="java.lang.String"/>
+		<form-property name="sous_motif_id" type="java.lang.String"/>
+		<form-property name="point_id" type="java.lang.String"/>
+		<form-property name="sous_point_id" type="java.lang.String"/>
+		<form-property name="type_dossier" type="java.lang.String"/>
+		<form-property name="commentaires" type="java.lang.String"/>
+		<form-property name="regime_id" type="java.lang.String"/>
+		<form-property name="satisfaction_code" type="java.lang.String"/> 
+		<form-property name="reclamation" type="java.lang.String"/> 
+		<form-property name="traitement_urgent" type="java.lang.String"/> 
+		<form-property name="date_rappel" type="java.lang.String"/> 
+		<form-property name="numero_rappel" type="java.lang.String"/> 
+		<form-property name="periode_rappel" type="java.lang.String"/> 
+		<form-property name="cloture_code" type="java.lang.String"/>
+		<form-property name="transferer_fiche" type="java.lang.String"/>
+		<form-property name="destinataire_transfert" type="java.lang.String"/>
+		<form-property name="texte_generique" type="java.lang.String"/>  
+		<form-property name="id_generique" type="java.lang.String"/> 	
+		<form-property name="prestations_beneficiaire_id" type="java.lang.String"/> 
+		<form-property name="prestations_code_acte" type="java.lang.String"/> 
+		<form-property name="prestations_decompte_date" type="java.lang.String"/> 
+		<form-property name="email_confirmation" type="java.lang.String"/> 
+		<form-property name="salaries_contrat_id" type="java.lang.String"/> 
+		<form-property name="procedure_mail" type="java.lang.Boolean"/>
+		<form-property name="procedure_mail_id" type="java.lang.String"/>
+		<form-property name="procedure_mail_dest" type="java.lang.String"/>
+		<form-property name="procedure_mail_cree" type="java.lang.Boolean"/>
+		<form-property name="demande_pec_cree" type="java.lang.Boolean"/>
+		
+   	</form-bean>  	         	
+  	
+  	
+  	<form-bean name="FichesATraiterForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 
+	    <form-property name="numPage" type="java.lang.String"/>
+	  	<form-property name="maxPageCalcule" type="java.lang.String"/> 
+	   	<form-property name="rowTo" type="java.lang.String"/> 
+	   	<form-property name="rowFrom" type="java.lang.String"/>  	           
+   	</form-bean> 
+  	
+   	
+   	<form-bean name="AdministrationForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 			 
+   	</form-bean>  	
+   	
+   	<form-bean name="AdministrationTeleActeursForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 		
+		<form-property name="texte_generique" type="java.lang.String"/>  	 
+		<form-property name="teleacteur_id" type="java.lang.String"/>
+		<form-property name="prenom" type="java.lang.String"/> 			 
+		<form-property name="nom" type="java.lang.String"/> 
+		<form-property name="extension" type="java.lang.String"/> 
+		<form-property name="role" type="java.lang.String"/> 	
+		<form-property name="IDHermes" type="java.lang.String"/> 					 		 			 			 
+   	</form-bean> 
+   	
+   	
+   	<form-bean name="HabiliterTeleActeurCampagnesForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 		
+		<form-property name="ids_campagnes" type="java.lang.String[]"/>	
+		<form-property name="teleacteur_id" type="java.lang.String"/> 
+		<form-property name="nom_prenom" type="java.lang.String"/> 		
+   	</form-bean>  	 
+   	
+   <form-bean name="HabiliterTeleActeurEntitesGestionForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 		
+		<form-property name="ids_eg" type="java.lang.String[]"/>	
+		<form-property name="teleacteur_id" type="java.lang.String"/> 
+		<form-property name="nom_prenom" type="java.lang.String"/> 		
+   	</form-bean>  
+   	
+   	 <form-bean name="CopierHabilitationsTeleActeurForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 		
+		<form-property name="ids_teleacteurs" type="java.lang.String[]"/>	
+		<form-property name="teleacteur_id" type="java.lang.String"/> 
+		<form-property name="nom_prenom" type="java.lang.String"/> 		
+   	</form-bean> 
+   	
+   	 <form-bean name="AdministrationMessagesForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 		
+		<form-property name="message_id" type="java.lang.String"/> 
+		<form-property name="campagne_id" type="java.lang.String"/> 
+		<form-property name="titre" type="java.lang.String"/> 
+		<form-property name="contenu" type="java.lang.String"/> 
+		<form-property name="dateDebut" type="java.lang.String"/> 
+		<form-property name="dateFin" type="java.lang.String"/> 
+		<form-property name="texte_generique" type="java.lang.String"/> 		
+   	</form-bean> 
+   	
+   	<form-bean name="AdministrationTransfertsForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 		
+		<form-property name="transfert_id" type="java.lang.String"/> 
+		<form-property name="libelle" type="java.lang.String"/> 
+		<form-property name="email" type="java.lang.String"/>	
+		<form-property name="texte_generique" type="java.lang.String"/> 	
+   	</form-bean> 
+   	
+	<form-bean name="AdministrationEntitesGestionSensiblesForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 		
+		<form-property name="texte_generique" type="java.lang.String"/>  	 
+		<form-property name="entite_gestion_id" type="java.lang.String"/>					 		 			 			 
+   	</form-bean> 
+   	
+   	 <form-bean name="AffecterTeleActeursEntiteGestionSensibleForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>		
+		<form-property name="entite_gestion_id" type="java.lang.String"/> 
+		<form-property name="code" type="java.lang.String"/> 		
+		<form-property name="libelle" type="java.lang.String"/> 	
+		<form-property name="mutuelle" type="java.lang.String"/> 
+		<form-property name="ids_teleacteurs" type="java.lang.String[]"/>		
+   	</form-bean> 
+   	
+    <form-bean name="AjouterEntiteGestionSensibleForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 		
+		<form-property name="ids_entites_gestions" type="java.lang.String[]"/>		
+   	</form-bean> 
+   	
+   	<form-bean name="AdministrationsSessionsForm" type="org.apache.struts.action.DynaActionForm">
+	   <form-property name="method" type="java.lang.String"/> 
+	   <form-property name="DUREE" type="java.lang.String"/>     	   
+   	</form-bean>
+   	
+   	<form-bean name="AdministrationScenariosForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>   
+		<form-property name="niveau" type="java.lang.String"/>  
+		<form-property name="campagne_id" type="java.lang.String"/>
+		<form-property name="mutuelle_id" type="java.lang.String"/>
+		<form-property name="entite_gestion_id" type="java.lang.String"/>
+		<form-property name="motif_id" type="java.lang.String"/>
+		<form-property name="libelle_motif" type="java.lang.String"/>	
+		<form-property name="sous_motif_id" type="java.lang.String"/>
+		<form-property name="libelle_sous_motif" type="java.lang.String"/>
+		<form-property name="reference_statistique_id" type="java.lang.String"/>		
+		<form-property name="point_id" type="java.lang.String"/>
+		<form-property name="libelle_point" type="java.lang.String"/>
+		<form-property name="sous_point_id" type="java.lang.String"/>
+		<form-property name="libelle_sous_point" type="java.lang.String"/>
+		<form-property name="consignes_scenario" type="java.lang.String"/>
+		<form-property name="discours_scenario" type="java.lang.String"/>
+		<form-property name="transferts_scenario" type="java.lang.String"/>
+		<form-property name="consignes_motif" type="java.lang.String"/>
+		<form-property name="discours_motif" type="java.lang.String"/>
+		<form-property name="transferts_motif" type="java.lang.String"/>
+		<form-property name="consignes_sous_motif" type="java.lang.String"/>
+		<form-property name="discours_sous_motif" type="java.lang.String"/>
+		<form-property name="transferts_sous_motif" type="java.lang.String"/>
+		<form-property name="consignes_point" type="java.lang.String"/>
+		<form-property name="discours_point" type="java.lang.String"/>
+		<form-property name="transferts_point" type="java.lang.String"/>
+		<form-property name="consignes_sous_point" type="java.lang.String"/>
+		<form-property name="discours_sous_point" type="java.lang.String"/>
+		<form-property name="transferts_sous_point" type="java.lang.String"/>
+	   	<form-property name="code_regime" type="java.lang.String"/>		
+	    <form-property name="mail_resiliation" type="java.lang.String"/>	
+	    <form-property name="flux_transfert_client" type="java.lang.String"/>	
+	</form-bean>
+	
+	<form-bean name="AdministrationModificationDeclenchementMailResiliationForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>   
+		<form-property name="niveau" type="java.lang.String"/>
+	</form-bean>	
+	
+	<form-bean name="AdministrationModificationFluxTransfertClientForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>   
+		<form-property name="niveau" type="java.lang.String"/>
+	</form-bean>
+	
+	<form-bean name="AdministrationDelockerForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/> 		
+		<form-property name="ids_fiches_a_delocker" type="java.lang.String[]"/>		 
+   	</form-bean>  	
+   	 		 		
+	<form-bean name="AdministrationPECForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>   
+		<form-property name="niveau" type="java.lang.String"/>  
+		<form-property name="campagne_id" type="java.lang.String"/>
+		<form-property name="mutuelle_id" type="java.lang.String"/>
+		<form-property name="scn_pec" type="java.lang.Boolean"/> 
+		<form-property name="scn_pec_modele_id" type="java.lang.String"/>
+		<form-property name="supp_pec_modele_id" type="java.lang.String"/>
+		<form-property name="scn_pec_libelle" type="java.lang.String"/>
+		<form-property name="scn_pec_operateur" type="java.lang.String"/>
+		<form-property name="scn_pec_organisme" type="java.lang.String"/>
+		<form-property name="scn_pec_emissionFax" type="java.lang.Boolean"/>
+		<form-property name="scn_pec_fax" type="java.lang.String"/>
+		<form-property name="scn_pec_emissionCourriel" type="java.lang.Boolean"/>
+		<form-property name="scn_pec_courriel" type="java.lang.String"/>
+		<form-property name="scn_pec_beneficiairePermis" type="java.lang.Boolean"/>
+		<form-property name="scn_pec_fournisseurPermis" type="java.lang.Boolean"/>
+		<form-property name="motif_id" type="java.lang.String"/>
+		<form-property name="sous_motif_id" type="java.lang.String"/>
+		<form-property name="point_id" type="java.lang.String"/>
+		<form-property name="sous_point_id" type="java.lang.String"/>
+		<form-property name="motif_pec" type="java.lang.Boolean"/>
+		<form-property name="sous_motif_pec" type="java.lang.Boolean"/>
+		<form-property name="point_pec" type="java.lang.Boolean"/>
+		<form-property name="sous_point_pec" type="java.lang.Boolean"/>
+	</form-bean>
+	
+	<form-bean name="AdministrationSiteWebForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>   
+		<form-property name="mutuelle_id" type="java.lang.String"/>
+		<form-property name="entite_id" type="java.lang.String"/> 
+		<form-property name="toutesEntites" type="java.lang.Boolean"/>
+		<form-property name="siteWeb" type="java.lang.String"/>
+		<form-property name="url" type="java.lang.String"/>
+	</form-bean>
+	
+	<form-bean name="AdministrationDocumentForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>
+		<form-property name="document_id" type="java.lang.String"/>
+		<form-property name="libelle" type="java.lang.String"/>
+		<form-property name="type" type="java.lang.String"/>
+		<form-property name="description" type="java.lang.String"/>
+		<form-property name="debut" type="java.lang.String"/>
+		<form-property name="fin" type="java.lang.String"/>
+		<form-property name="fichier" type="org.apache.struts.upload.FormFile"/>
+		<form-property name="nom_fichier" type="java.lang.String"/>
+	</form-bean>
+	
+	<form-bean name="AdministrationModelePECForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>   
+ 		<form-property name="mod_pec_id" type="java.lang.String"/>
+ 		<form-property name="mod_pec_libelle" type="java.lang.String"/>
+ 		<form-property name="mod_pec_operateur" type="java.lang.String"/>
+ 		<form-property name="mod_pec_organisme" type="java.lang.String"/>
+		<form-property name="mod_pec_emissionFax" type="java.lang.Boolean"/>
+		<form-property name="mod_pec_fax" type="java.lang.String"/>
+		<form-property name="mod_pec_emissionCourriel" type="java.lang.Boolean"/>
+		<form-property name="mod_pec_courriel" type="java.lang.String"/>
+		<form-property name="mod_pec_beneficiairePermis" type="java.lang.Boolean"/>
+		<form-property name="mod_pec_fournisseurPermis" type="java.lang.Boolean"/>
+	</form-bean>	
+	
+	<form-bean name="AdministrationProcedureMailForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>   
+		<form-property name="campagne_id" type="java.lang.String"/>
+		<form-property name="mutuelle_id" type="java.lang.String"/>
+		<form-property name="scn_prc_mail_id" type="java.lang.String"/>
+		<form-property name="motif_id" type="java.lang.String"/>
+		<form-property name="sous_motif_id" type="java.lang.String"/>
+		<form-property name="point_id" type="java.lang.String"/>
+		<form-property name="sous_point_id" type="java.lang.String"/>
+		<form-property name="motif_prc_mail" type="java.lang.Boolean"/>
+		<form-property name="sous_motif_prc_mail" type="java.lang.Boolean"/>
+		<form-property name="point_prc_mail" type="java.lang.Boolean"/>
+		<form-property name="sous_point_prc_mail" type="java.lang.Boolean"/>
+	</form-bean>
+	
+	<form-bean name="AdministrationAdresseGestionForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>   
+		<form-property name="campagne_id" type="java.lang.String"/>
+		<form-property name="mutuelle_id" type="java.lang.String"/>
+		<form-property name="toutes_mutuelles" type="java.lang.String"/>
+		<form-property name="adr_id" type="java.lang.String"/>
+		<form-property name="adr_libelle" type="java.lang.String"/>
+		<form-property name="adr_adresse" type="java.lang.String"/>
+		<form-property name="adr_telephone" type="java.lang.String"/>
+		<form-property name="adr_telecopie" type="java.lang.String"/>
+		<form-property name="adr_courriel" type="java.lang.String"/>
+	</form-bean>
+	
+	<form-bean name="AdministrationModeleProcedureMailForm" type="org.apache.struts.action.DynaActionForm">
+		<form-property name="method" type="java.lang.String"/>   
+		<form-property name="mod_prc_mail_id" type="java.lang.String"/>
+		<form-property name="mod_prc_mail_modele" type="java.lang.String"/>
+		<form-property name="mod_prc_mail_type" type="java.lang.String"/>
+		<form-property name="mod_prc_mail_objet" type="java.lang.String"/>
+		<form-property name="mod_prc_mail_invite" type="java.lang.String"/>
+		<form-property name="mod_prc_mail_recap_adh" type="java.lang.Boolean"/>
+		<form-property name="mod_prc_mail_corps" type="java.lang.String"/>
+		<form-property name="mod_prc_mail_signature" type="java.lang.String"/>
+		<form-property name="mod_prc_mail_destinataire" type="java.lang.String"/>
+		<form-property name="mod_prc_mail_recap_centregestion" type="java.lang.Boolean"/>
+		<form-property name="mod_prc_mail_document_id" type="java.lang.String"/>
+	</form-bean>
+	
+ </form-beans>
+
+<global-exceptions>
+	    <exception
+	      key= "error.global.message"
+	      type= "java.lang.IContactsException"
+	      handler= "fr.igestion.crm.IContactsExceptionHandler"
+	      path= "/erreur.jsp" />
+</global-exceptions>
+
+ 
+ <action-mappings>
+ 
+ 	<action name="AccueilForm" path="/hermes"  scope="session" type="fr.igestion.crm.HermesAction">
+	   <forward name="erreur" path="/erreur.jsp"/>
+	   <forward name="continuer" path="/index.do"/>
+	</action>
+ 
+ 	<action name="AccueilForm" path="/index"  scope="session" type="fr.igestion.crm.IndexAction">
+	   <forward name="accueil" path=".accueil.page"/>
+	   <forward name="erreurConnexion" path="/login/erreurConnexion.jsp"/>
+	   <forward name="ouvrir_fiche_from_externe" path=".ouvrir_fiche_from_externe.page"/>
+	</action>
+	
+	<action name="AccueilForm" parameter="method" path="/Accueil" scope="session" type="fr.igestion.crm.AccueilAction">
+   	    <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+		<forward name="accueil" path=".accueil.page"/>
+		<forward name="ficheAppel" path=".ficheAppel.page"/>
+	</action>
+	
+ 
+ 	<action name="FicheAppelForm" parameter="method" path="/FicheAppel" scope="session" type="fr.igestion.crm.FicheAppelAction">
+   	    <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+		<forward name="ficheAppel" path=".ficheAppel.page"/> 
+		<forward name="resultatCloture" path=".resultatCloture.page"/>	
+		<forward name="accueil" path=".accueil.page"/>	
+	</action>
+		
+		
+	<action name="FichesATraiterForm" parameter="method" path="/FichesATraiter" scope="session" type="fr.igestion.crm.FichesATraiterAction">
+   		<forward name="expirationSession" path="/login/sessionExpiree.html"/>
+		<forward name="fichesATraiter" path=".fichesATraiter.page"/>  
+	</action>	
+	
+	
+	<action name="AdministrationForm" parameter="method" path="/Administration" scope="session" type="fr.igestion.crm.admin.AdministrationAction">
+       <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="accueilAdministration" path=".accueilAdministration.page"/>
+	</action>
+	
+	
+	<action name="AdministrationTeleActeursForm" parameter="method" path="/AdministrationTeleActeurs" scope="session" type="fr.igestion.crm.admin.AdministrationTeleActeursAction">
+       <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="teleActeurs" path=".teleActeurs.page"/>
+	</action>
+	
+	<action name="HabiliterTeleActeurCampagnesForm" parameter="method" path="/HabiliterTeleActeurCampagnes" scope="session" type="fr.igestion.crm.admin.HabiliterTeleActeurCampagnesAction">
+       <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="habilitationTeleActeurCampagnes" path="/admin/admin_affecterTeleActeurCampagnes.jsp" />
+	</action>
+	
+	<action name="HabiliterTeleActeurEntitesGestionForm" parameter="method" path="/HabiliterTeleActeurEntitesGestion" scope="session" type="fr.igestion.crm.admin.HabiliterTeleActeurEntitesGestionAction">
+       <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="habilitationTeleActeurEntitesGestion" path="/admin/admin_affecterTeleActeurEntitesGestion.jsp" />
+	</action>
+	
+	<action name="CopierHabilitationsTeleActeurForm" parameter="method" path="/CopierHabilitationsTeleActeur" scope="session" type="fr.igestion.crm.admin.CopierHabilitationsTeleActeurAction">
+       <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="copierHabilitationsTeleActeur" path="/admin/admin_copierHabilitationsTeleActeur.jsp" />
+	</action>
+	
+
+	<action name="AdministrationMessagesForm" parameter="method" path="/AdministrationMessages" scope="session" type="fr.igestion.crm.admin.AdministrationMessagesAction">
+       <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="messages" path=".messages.page"/>
+	    <forward name="le_message_en_cours" path="/admin/admin_modifierMessage.jsp" />
+	</action>
+	
+	<action name="AdministrationTransfertsForm" parameter="method" path="/AdministrationTransferts" scope="session" type="fr.igestion.crm.admin.AdministrationTransfertsAction">
+       <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="transferts" path=".transferts.page"/>
+	    <forward name="le_transfert_en_cours" path="/admin/admin_modifierTransfert.jsp" />
+	</action>
+	
+	<action name="AdministrationEntitesGestionSensiblesForm" parameter="method" path="/AdministrationEntitesGestionSensibles" scope="session" type="fr.igestion.crm.admin.AdministrationEntitesGestionSensiblesAction">
+       <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="entitesGestionSensibles" path=".entitesGestionSensibles.page"/>
+	</action>
+	
+	
+	<action name="AffecterTeleActeursEntiteGestionSensibleForm" parameter="method" path="/AffecterTeleActeursEntiteGestionSensible" scope="session" type="fr.igestion.crm.admin.AffecterTeleActeursEntiteGestionSensibleAction">
+       <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="teleActeursEntiteGestionSensible" path="/admin/admin_affecterTeleActeursEntiteGestionSensible.jsp" />
+	</action>	
+	
+	
+	<action name="AjouterEntiteGestionSensibleForm" parameter="method" path="/AjouterEntiteGestionSensible" scope="session" type="fr.igestion.crm.admin.AjouterEntiteGestionSensibleAction">
+       <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="ajouterEntiteGestionSensible" path="/admin/admin_ajouterEntiteGestionSensible.jsp" />
+	</action>
+	
+	<action name="AdministrationSessionsForm" parameter="method" path="/AdministrationSessions" scope="session" type="fr.igestion.crm.admin.AdministrationSessionsAction">
+   	   <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="sessionsActives" path=".sessionsActives.page"/>	
+	</action>
+	
+	
+	<action name="AdministrationScenariosForm" parameter="method" path="/AdministrationScenarios" scope="session" type="fr.igestion.crm.admin.AdministrationScenariosAction">
+   	   <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="scenarios" path=".scenarios.page"/>	
+	</action>
+	
+	<action name="AdministrationPECForm" parameter="method" path="/AdministrationPEC" scope="session" type="fr.igestion.crm.admin.AdministrationPECAction">
+   	   <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="pec" path=".pec.page"/>	
+	</action>
+	
+	<action name="AdministrationSiteWebForm" parameter="method" path="/AdministrationSiteWeb" scope="session" type="fr.igestion.crm.admin.AdministrationSiteWebAction">
+   	   <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="siteWeb" path=".siteWeb.page"/>	
+	</action>
+	
+	<action name="AdministrationDocumentForm" parameter="method" path="/AdministrationDocument" scope="session" type="fr.igestion.crm.admin.AdministrationDocumentAction">
+   	   <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="document" path=".document.page"/>	
+	</action>
+	
+	<action name="AdministrationModelePECForm" parameter="method" path="/AdministrationModelePEC" scope="session" type="fr.igestion.crm.admin.AdministrationModelePECAction">
+   	   <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="modele_pec" path=".modele_pec.page"/>	
+	</action>
+	
+	<action name="AdministrationProcedureMailForm" parameter="method" path="/AdministrationProcedureMail" scope="session" type="fr.igestion.crm.admin.AdministrationProcedureMailAction">
+   	   <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="procedure_mail" path=".procedure_mail.page"/>	
+	</action>
+	
+	<action name="AdministrationAdresseGestionForm" parameter="method" path="/AdministrationAdresseGestion" scope="session" type="fr.igestion.crm.admin.AdministrationAdresseGestionAction">
+   	   <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="adresseGestion" path=".adresseGestion.page"/>	
+	</action>
+	
+	<action name="AdministrationModeleProcedureMailForm" parameter="method" path="/AdministrationModeleProcedureMail" scope="session" type="fr.igestion.crm.admin.AdministrationModeleProcedureMailAction">
+   	   <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   <forward name="modele_procedure_mail" path=".modele_procedure_mail.page"/>	
+	</action>
+	
+	<action name="AdministrationModificationDeclenchementMailResiliationForm" parameter="method" path="/AdministrationModificationDeclenchementMailResiliation" scope="session" type="fr.igestion.crm.admin.AdministrationModificationDeclenchementMailResiliationAction">
+	   	<forward name="modificationDeclenchementMailResiliation" path="/admin/admin_modification_declenchement_mail_resiliation.jsp"/>
+	</action>
+	
+	<action name="AdministrationModificationFluxTransfertClientForm" parameter="method" path="/AdministrationModificationFluxTransfertClient" scope="session" type="fr.igestion.crm.admin.AdministrationModificationFluxTransfertClientAction">
+	   	<forward name="modificationFluxTransfertClient" path="/admin/admin_modification_flux_transfert_client.jsp"/>
+	</action>
+	
+	<action name="AdministrationDelockerForm" parameter="method" path="/AdministrationDelocker" scope="session" type="fr.igestion.crm.admin.AdministrationDelockerAction">
+	   	 <forward name="expirationSession" path="/login/sessionExpiree.html"/>
+	   	<forward name="fichesLockees" path=".fichesLockees.page"/>
+	</action>
+  
+ </action-mappings>
+ 
+ <controller/>
+ 
+ <message-resources null="false" parameter="hcontacts_libelles"/>
+
+ <plug-in className="org.apache.struts.tiles.TilesPlugin">
+	  <set-property property="definitions-config" value="/WEB-INF/tiles-defs.xml"/>
+	  <set-property property="moduleAware" value="true"/>
+ </plug-in>
+
+</struts-config>
+
