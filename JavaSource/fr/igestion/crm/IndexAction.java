@@ -21,7 +21,7 @@ import fr.igestion.crm.bean.TeleActeur;
 
 public class IndexAction extends org.apache.struts.action.Action  {
 	
-	private static final String _version = "V4.0";
+	private static final String _version = "V4.2";
 	
 	public ActionForward execute(ActionMapping mapping, ActionForm form, HttpServletRequest request, HttpServletResponse response) throws Exception {
 		
@@ -88,8 +88,6 @@ public class IndexAction extends org.apache.struts.action.Action  {
 			return mapping.findForward("erreurConnexion");
 		}
 		
-		
-		
 		//L'utilisateur a le droit d'utiliser l'application HCONTACTS ?
 		String droitUtilisationApplication = SQLDataService.getDroitUtilisationApplication("HCONTACTS", utilisateur.getUTL_ID());
 		
@@ -104,7 +102,7 @@ public class IndexAction extends org.apache.struts.action.Action  {
 		request.getSession().setAttribute("habilitations_user", habilitations_user);
 		
 		//Mettre les objets fréquemment utilisés en session
-		CrmUtilSession.mettreObjetsConstantsEnSession(request);
+		CrmUtilSession.mettreObjetsConstantsEnSession(request, getServlet().getServletContext());
 		
 		//Préparer le formulaire de la page d'accueil
 		CrmForms.initialiserAccueilForm(mapping, request);

@@ -19,13 +19,17 @@ import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import javax.naming.Context;
 import javax.naming.InitialContext;
@@ -34,11 +38,14 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import javax.sql.DataSource;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.WordUtils;
+import org.apache.log4j.Logger;
 import org.apache.struts.action.DynaActionForm;
 
-import common.Logger;
 import fr.igestion.annuaire.bean.Personne;
 import fr.igestion.annuaire.bean.Utilisateur;
+import fr.igestion.common.tools.BeanUtils;
 import fr.igestion.crm.bean.Appel;
 import fr.igestion.crm.bean.Appelant;
 import fr.igestion.crm.bean.Application;
@@ -94,15 +101,21 @@ import fr.igestion.crm.bean.pec.Pec;
 import fr.igestion.crm.bean.scenario.AdresseGestion;
 import fr.igestion.crm.bean.scenario.Campagne;
 import fr.igestion.crm.bean.scenario.InfosScenario;
+import fr.igestion.crm.bean.scenario.ItemScenario;
 import fr.igestion.crm.bean.scenario.Motif;
 import fr.igestion.crm.bean.scenario.Point;
 import fr.igestion.crm.bean.scenario.ReferenceStatistique;
 import fr.igestion.crm.bean.scenario.Scenario;
 import fr.igestion.crm.bean.scenario.SousMotif;
 import fr.igestion.crm.bean.scenario.SousPoint;
+import fr.igestion.crm.config.IContacts;
+import fr.igestion.crm.services.BackOfficeService;
 import oracle.jdbc.OracleTypes;
 
 public class SQLDataService {
+	
+	public static final String NIVEAU_SCENARIO = "SCENARIO", NIVEAU_MOTIF = "MOTIF", NIVEAU_SOUSMOTIF = "SOUSMOTIF", 
+				NIVEAU_POINT = "POINT", NIVEAU_SOUSPOINT = "SOUSPOINT";
 
     private static final Logger LOGGER = Logger.getLogger(SQLDataService.class);
     private static final String _AnoLiberationConn = "Libération connexion impossible";
@@ -110,6 +123,7 @@ public class SQLDataService {
 
     private static SQLDataService _instance;
     private static Properties _prop;
+    
     private static DateFormat _fmtddMMyyyy = new SimpleDateFormat("dd/MM/yyyy");
 
     private static final String _UNION = " UNION ";
@@ -287,34 +301,71 @@ public class SQLDataService {
         }
         return _instance;
     }
-
-    private static void closeRsStmtConn(ResultSet rs, Statement stmt, Connection conn){
-        try {
-            if( rs != null ){
-                rs.close();
-            }
-            if( stmt != null ){
-                stmt.close();
-            }
-            if( conn != null ){
-                conn.close();
-            }    
-        } catch (Exception e) {
-            LOGGER.error(_AnoLiberationConn, e);
-        }
+    
+    public static void begin() throws Exception {
+    	SQLConnectionManager.begin(); 
     }
     
+    public static boolean isInProcess(Connection connection) {
+    	return SQLConnectionManager.isInProcess(connection);
+    }
+    
+    public static boolean hasStatementInProcess(Connection connection) throws SQLException {
+    	return SQLConnectionManager.hasStatementInProcess(connection); 
+    }
+    
+    public static void commit() throws SQLException {
+    	SQLConnectionManager.commit();    	
+    }
+    
+    public static void rollback() throws SQLException {
+    	SQLConnectionManager.rollback(); 
+    }
+    
+    public static void end() throws Exception {
+    	SQLConnectionManager.end();
+     }
+    
+    public static void end(boolean isOK) throws Exception {
+    	SQLConnectionManager.end(isOK);
+    }
+    
+    public static PreparedStatement prepareStatement(Connection connection, String sql) throws SQLException {
+    	return SQLConnectionManager.prepareStatement(connection, sql);
+    }
+
+	private static void closeRsStmtConn(ResultSet rs, Statement stmt, Connection conn) {
+		try {
+			if (rs != null) {
+				rs.close();
+			}
+
+			if (stmt != null) {
+				if (!(stmt instanceof PreparedStatement)) {
+					stmt.close();
+				} else if ((conn != null && !isInProcess(conn)) || (conn == null && !isInProcess(stmt.getConnection()))) {
+					boolean releaseOK = SQLConnectionManager.releaseStatement((PreparedStatement) stmt);
+					if (!releaseOK) {
+						stmt.close();
+					}
+				}
+			}
+			
+			if (conn != null && !isInProcess(conn)) {
+				if (!conn.isClosed()) {
+					SQLConnectionManager.removeConnection();
+				}
+				conn.close();
+			}
+
+		} catch (Exception e) {
+			LOGGER.error(_AnoLiberationConn, e);
+		}
+	}	
+	
+    
     private static void closeStmtConn( Statement stmt, Connection conn){
-        try {
-            if( stmt != null ){
-                stmt.close();
-            }
-            if( conn != null ){
-                conn.close();
-            }    
-        } catch (Exception e) {
-            LOGGER.error(_AnoLiberationConn, e);
-        }
+    	closeRsStmtConn(null, stmt, conn);
     }
     
     public static String get_SERVEUR_SMTP() {
@@ -325,22 +376,10 @@ public class SQLDataService {
         return (_ON.equals(request.getParameter(param)))?_VRAI:_FAUX;
     }
     
-    public static Connection getConnexion() {
-
-        Connection conn = null;
-        
-        try{
-            Context initContext = new InitialContext();
-            Context envContext = (Context) initContext.lookup("java:/comp/env");
-            DataSource ds = (DataSource) envContext.lookup("jdbc/hcontacts");
-            conn = ds.getConnection(); 
-        } catch(Exception e){
-            throw new IContactsException("getConnexion",e);
-        }
-        return conn;
-
-    }
-
+	public static Connection getConnexion() {
+		return SQLConnectionManager.getConnection();
+	}    
+ 
     public static Connection getConnexionOracle() {
 
        
@@ -379,7 +418,7 @@ public class SQLDataService {
         return conn;
 
     }
-
+    
     public static boolean positionnerModule(String nom_module) {
 
         Connection conn = null;
@@ -414,7 +453,7 @@ public class SQLDataService {
             String requete = "SELECT p.VALEUR from HOTLINE.PARAMETRAGE p WHERE  p.CLE = ? ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, uneCle);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -438,7 +477,7 @@ public class SQLDataService {
         try {
             String requete = "SELECT UTL_ID, UTL_PRS_ID, UTL_LOGIN, UTL_PASSWORD FROM H_ANNUAIRE.T_UTILISATEURS_UTL where UTL_LOGIN = ? ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, loginUtilisateur);
 
             rs = stmt.executeQuery();
@@ -478,7 +517,7 @@ public class SQLDataService {
                     + "WHERE prs.PRS_ID = ? AND prs_mor.prs_id(+) = pem.pem_prs_id_employeur AND prs.prs_id = pem.pem_prs_id_employe(+) ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idPersonne);
 
             rs = stmt.executeQuery();
@@ -556,7 +595,7 @@ public class SQLDataService {
             String requete = "SELECT APP_ID, APP_LIB, APP_ALIAS, APP_DESCRIPTION, APP_CHEMINEXE, APP_LIBREACCES, APP_ACTIF "
                     + "FROM H_ANNUAIRE.T_APPLICATIONS_APP WHERE APP_ALIAS = ? ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, aliasApplication);
 
             rs = stmt.executeQuery();
@@ -600,7 +639,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.TELEACTEUR t, HOTLINE.CODES c "
                     + "WHERE t.LOGIN = ? and t.CIVILITE_CODE = c.CODE(+)";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, loginTeleActeur);
 
             rs = stmt.executeQuery();
@@ -657,7 +696,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.TELEACTEUR t, HOTLINE.CODES c  "
                     + "WHERE t.ID = ? and t.CIVILITE_CODE = c.CODE(+) ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idTeleActeur);
 
             rs = stmt.executeQuery();
@@ -728,32 +767,24 @@ public class SQLDataService {
             }
             requete += " ORDER BY 3 ASC, 4 ASC ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, entite_gestion_sensible_id);
 
             rs = stmt.executeQuery();
-            while (rs.next()) {
-                unDisplay = new TeleActeur();
-                unDisplay.setId(rs.getString(1));
-                unDisplay.setLibelleCivilite((rs.getString(2) != null) ? rs
-                        .getString(2) : "");
-                unDisplay.setNom((rs.getString(3) != null) ? rs.getString(3)
-                        : "");
-                unDisplay.setPrenom((rs.getString(4) != null) ? rs.getString(4)
-                        : "");
-                unDisplay.setSociete((rs.getString(5) != null) ? rs
-                        .getString(5) : "");
-                unDisplay.setService((rs.getString(6) != null) ? rs
-                        .getString(6) : "");
-                unDisplay.setPole((rs.getString(7) != null) ? rs.getString(7)
-                        : "");
-                unDisplay.setPoste((rs.getString(8) != null) ? rs.getString(8)
-                        : "");
-                unDisplay.setActif((rs.getString(9) != null) ? rs.getString(9)
-                        : "");
+			while (rs.next()) {
+				unDisplay = new TeleActeur();
+				unDisplay.setId(rs.getString(1));
+				unDisplay.setLibelleCivilite((rs.getString(2) != null) ? rs.getString(2) : "");
+				unDisplay.setNom((rs.getString(3) != null) ? rs.getString(3) : "");
+				unDisplay.setPrenom((rs.getString(4) != null) ? rs.getString(4) : "");
+				unDisplay.setSociete((rs.getString(5) != null) ? rs.getString(5) : "");
+				unDisplay.setService((rs.getString(6) != null) ? rs.getString(6) : "");
+				unDisplay.setPole((rs.getString(7) != null) ? rs.getString(7) : "");
+				unDisplay.setPoste((rs.getString(8) != null) ? rs.getString(8) : "");
+				unDisplay.setActif((rs.getString(9) != null) ? rs.getString(9) : "");
 
-                res.add(unDisplay);
-            }
+				res.add(unDisplay);
+			}
             stmt.clearParameters();
             return res;
         } catch (Exception e) {
@@ -763,83 +794,66 @@ public class SQLDataService {
         }
     }
 
-    public static Collection<TeleActeur> getTeleActeurs(String actif_ou_pas,
-            String lettre_demandee) {
-        Connection conn = null;
-        PreparedStatement stmt = null;
-        ResultSet rs = null;
-        Collection<TeleActeur> res = new ArrayList<TeleActeur>();
-        try {
-            conn = getConnexion();
-            TeleActeur unDisplay = null;
-            String requete = "SELECT distinct t.ID, c.LIBELLE, t.NOM, t.PRENOM, t.IDHERMES, t.ONGLETSFICHES, t.ACTIF, t.UTL_ID, "
-                    + "prs_mor.prs_nom as societe, srv.srv_lib service, pol.pol_lib pole, hch.HCH_ADMINISTRATION, hch.HCH_STATISTIQUES, t.EXCLU_MESSAGE_CONFIDENTIALITE "
-                    + "FROM HOTLINE.TELEACTEUR t, HOTLINE.CODES c, hotline.T_HCONTACTS_HABILITATIONS_HCH hch, "
-                    + "h_annuaire.t_utilisateurs_utl utl, H_ANNUAIRE.t_personnes_prs prs, "
-                    + "H_ANNUAIRE.t_personnes_prs prs_mor, H_ANNUAIRE.t_personnesemplois_pem pem, H_ANNUAIRE.t_personnesservicespoles_psp psp, "
-                    + "H_ANNUAIRE.t_services_srv srv, H_ANNUAIRE.t_poles_pol pol "
-                    + "WHERE t.CIVILITE_CODE = c.CODE(+) and t.UTL_ID = utl.UTL_ID(+) and utl.UTL_PRS_ID = prs.PRS_ID(+) "
-                    + "AND prs_mor.prs_id(+) = pem.pem_prs_id_employeur AND prs.prs_id = pem.PEM_PRS_ID_EMPLOYE(+) "
-                    + "and prs.prs_id = psp.psp_prs_id(+) AND psp.psp_srv_id = srv.srv_id(+) AND psp.psp_pol_id = pol.pol_id(+) "
-                    + "and t.UTL_ID = hch.HCH_UTL_ID(+)";
+    public static Collection<TeleActeur> getTeleActeurs(String actif_ou_pas, String lettre_demandee) {
+    	
+		Connection conn = null;
+		PreparedStatement stmt = null;
+		ResultSet rs = null;
+		Collection<TeleActeur> res = new ArrayList<TeleActeur>();
+		try {
+			conn = getConnexion();
+			TeleActeur unDisplay = null;
+			String requete = "SELECT distinct t.ID, c.LIBELLE, t.NOM, t.PRENOM, t.IDHERMES, t.ONGLETSFICHES, t.ACTIF, t.UTL_ID, "
+					+ "prs_mor.prs_nom as societe, srv.srv_lib service, pol.pol_lib pole, hch.HCH_ADMINISTRATION, hch.HCH_STATISTIQUES, t.EXCLU_MESSAGE_CONFIDENTIALITE "
+					+ "FROM HOTLINE.TELEACTEUR t, HOTLINE.CODES c, hotline.T_HCONTACTS_HABILITATIONS_HCH hch, " + "h_annuaire.t_utilisateurs_utl utl, H_ANNUAIRE.t_personnes_prs prs, "
+					+ "H_ANNUAIRE.t_personnes_prs prs_mor, H_ANNUAIRE.t_personnesemplois_pem pem, H_ANNUAIRE.t_personnesservicespoles_psp psp, "
+					+ "H_ANNUAIRE.t_services_srv srv, H_ANNUAIRE.t_poles_pol pol " + "WHERE t.CIVILITE_CODE = c.CODE(+) and t.UTL_ID = utl.UTL_ID(+) and utl.UTL_PRS_ID = prs.PRS_ID(+) "
+					+ "AND prs_mor.prs_id(+) = pem.pem_prs_id_employeur AND prs.prs_id = pem.PEM_PRS_ID_EMPLOYE(+) "
+					+ "and prs.prs_id = psp.psp_prs_id(+) AND psp.psp_srv_id = srv.srv_id(+) AND psp.psp_pol_id = pol.pol_id(+) " + "and t.UTL_ID = hch.HCH_UTL_ID(+)";
 
-            if (_VRAI.equals(actif_ou_pas)) {
-                requete += " AND t.ACTIF = 1 ";
-            }
+			if (_VRAI.equals(actif_ou_pas)) {
+				requete += " AND t.ACTIF = 1 ";
+			}
 
-            if (!"".equals(lettre_demandee)) {
-                requete += " AND t.NOM like ? ";
-            }
+			if (!"".equals(lettre_demandee)) {
+				requete += " AND t.NOM like ? ";
+			}
 
-            requete += " ORDER BY 3 ASC, 4 ASC";
+			requete += " ORDER BY 7 DESC, 3 ASC, 4 ASC";
 
-            stmt = conn.prepareStatement(requete);
-            if (!"".equals(lettre_demandee)) {
-                stmt.setString(1, lettre_demandee + "%");
-            }
+			stmt = prepareStatement(conn, requete);
+			if (!"".equals(lettre_demandee)) {
+				stmt.setString(1, lettre_demandee + "%");
+			}
 
-            rs = stmt.executeQuery();
-            while (rs.next()) {
-                unDisplay = new TeleActeur();
-                unDisplay.setId(rs.getString(1));
-                unDisplay.setLibelleCivilite((rs.getString(2) != null) ? rs
-                        .getString(2) : "");
-                unDisplay.setNom((rs.getString(3) != null) ? rs.getString(3)
-                        : "");
-                unDisplay.setPrenom((rs.getString(4) != null) ? rs.getString(4)
-                        : "");
-                unDisplay.setIdHermes((rs.getString(5) != null) ? rs
-                        .getString(5) : "");
-                unDisplay.setOngletsFiches((rs.getString(6) != null) ? rs
-                        .getString(6) : "");
-                unDisplay.setActif((rs.getString(7) != null) ? rs.getString(7)
-                        : "");
-                unDisplay.setUtl_Id((rs.getString(8) != null) ? rs.getString(8)
-                        : "");
-                unDisplay.setSociete((rs.getString(9) != null) ? rs
-                        .getString(9) : "");
-                unDisplay.setService((rs.getString(10) != null) ? rs
-                        .getString(10) : "");
-                unDisplay.setPole((rs.getString(11) != null) ? rs.getString(11)
-                        : "");
-                unDisplay.setHCH_ADMINISTRATION((rs.getString(12) != null) ? rs
-                        .getString(12) : "");
-                unDisplay.setHCH_STATISTIQUES((rs.getString(13) != null) ? rs
-                        .getString(13) : "");
-                unDisplay
-                        .setEXCLU_MESSAGE_CONFIDENTIALITE((rs.getString(14) != null) ? rs
-                                .getString(14) : "");
+			rs = stmt.executeQuery();
+			while (rs.next()) {
+				unDisplay = new TeleActeur();
+				unDisplay.setId(rs.getString(1));
+				unDisplay.setLibelleCivilite((rs.getString(2) != null) ? rs.getString(2) : "");
+				unDisplay.setNom((rs.getString(3) != null) ? rs.getString(3) : "");
+				unDisplay.setPrenom((rs.getString(4) != null) ? rs.getString(4) : "");
+				unDisplay.setIdHermes((rs.getString(5) != null) ? rs.getString(5) : "");
+				unDisplay.setOngletsFiches((rs.getString(6) != null) ? rs.getString(6) : "");
+				unDisplay.setActif((rs.getString(7) != null) ? rs.getString(7) : "");
+				unDisplay.setUtl_Id((rs.getString(8) != null) ? rs.getString(8) : "");
+				unDisplay.setSociete((rs.getString(9) != null) ? rs.getString(9) : "");
+				unDisplay.setService((rs.getString(10) != null) ? rs.getString(10) : "");
+				unDisplay.setPole((rs.getString(11) != null) ? rs.getString(11) : "");
+				unDisplay.setHCH_ADMINISTRATION((rs.getString(12) != null) ? rs.getString(12) : "");
+				unDisplay.setHCH_STATISTIQUES((rs.getString(13) != null) ? rs.getString(13) : "");
+				unDisplay.setEXCLU_MESSAGE_CONFIDENTIALITE((rs.getString(14) != null) ? rs.getString(14) : "");
 
-                res.add(unDisplay);
-            }
-            stmt.clearParameters();
-            return res;
-        } catch (Exception e) {
-            throw new IContactsException("getTeleActeurs", e);
-        } finally {
-            closeRsStmtConn(rs,stmt,conn);
-        }
-    }
+				res.add(unDisplay);
+			}
+			stmt.clearParameters();
+			return res;
+		} catch (Exception e) {
+			throw new IContactsException("getTeleActeurs", e);
+		} finally {
+			closeRsStmtConn(rs, stmt, conn);
+		}
+	}
 
     public static Collection<EntiteGestion> getEntitesGestion() {
 
@@ -856,7 +870,7 @@ public class SQLDataService {
                     + "WHERE eg.MUTUELLE_ID = mut.id and eg.type = 'E') w "
                     + "left outer join hotline.ENTITEGESTIONBLACKLISTEE egbl on w.ID = egbl.ENTITEGESTION_ID "
                     + "ORDER by 5, 2, 3 asc ";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 unDisplay = new EntiteGestion();
@@ -899,7 +913,7 @@ public class SQLDataService {
                     + "LEFT OUTER JOIN HOTLINE.TELEACTEUR t on TEGBL.TELEACTEUR_ID = t.ID AND t.ACTIF = 1 "
                     + "GROUP BY eg.ID, eg.CODE, eg.LIBELLE, eg.MUTUELLE_ID, mut.LIBELLE "
                     + "ORDER BY 5 ASC, 2 ASC, 3 ASC   ";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 unDisplay = new EntiteGestion();
@@ -940,7 +954,7 @@ public class SQLDataService {
             String requete = "SELECT eg.ID, eg.CODE, eg.LIBELLE "
                     + "FROM HOTLINE.TELEACTEURENTITEGESTIONBL egbl, APPLICATION.ENTITE_GESTION eg "
                     + "WHERE egbl.ENTITEGESTION_ID = eg.ID AND egbl.TELEACTEUR_ID = ? ";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, teleacteur_id);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -976,7 +990,7 @@ public class SQLDataService {
                     + "m.datedebut, m.datefin, m.campagne_id, case when m.DATEFIN is null and trunc(m.DATEDEBUT) <= trunc(sysdate) then '1' when trunc(m.datefin) >= trunc(sysdate) and trunc(m.datedebut) <= trunc(sysdate) then '1' else '0' end "
                     + "FROM hotline.MESSAGE m, hotline.campagne c where c.id = m.CAMPAGNE_ID  order by 10 desc, 1 asc";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1012,35 +1026,41 @@ public class SQLDataService {
     }
 
     public static Collection<Transfert> getTransferts() {
+    	
         Connection conn = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
         Collection<Transfert> res = new ArrayList<Transfert>();
         try {
+        	begin();
             conn = getConnexion();
             Transfert unDisplay = null;
-            String requete = "SELECT T.TRA_ID, T.TRA_LIBELLE, T.TRA_EMAIL "
-                    + "FROM HOTLINE.T_TRANSFERTS_TRA T order by 2 asc";
-
-            stmt = conn.prepareStatement(requete);
+            String requete = "SELECT DISTINCT T.TRA_ID, T.TRA_LIBELLE, T.TRA_EMAIL, TCA.TCA_TRA_ID "
+            			   + "FROM HOTLINE.T_TRANSFERTS_TRA T "
+            			   + "LEFT JOIN HOTLINE.T_TRANSFERTCAMPAGNE_TCA TCA "
+            			   + "ON T.TRA_ID = TCA.TCA_TRA_ID order by 2 asc ";
+            
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
                 unDisplay = new Transfert();
                 unDisplay.setTRA_ID(rs.getString(1));
-                unDisplay.setTRA_LIBELLE((rs.getString(2) != null) ? rs
-                        .getString(2) : "");
-                unDisplay.setTRA_EMAIL((rs.getString(3) != null) ? rs
-                        .getString(3) : "");
+                unDisplay.setTRA_LIBELLE((rs.getString(2) != null) ? rs.getString(2) : "");
+                unDisplay.setTRA_EMAIL((rs.getString(3) != null) ? rs.getString(3) : "");
+				if (rs.getString(4) != null) {
+					unDisplay.setCampagnesAffectees(getCampagnesTransfert(unDisplay.getTRA_ID()));
+				}
 
                 res.add(unDisplay);
             }
             stmt.clearParameters();
+            end();            
             return res;
+            
         } catch (Exception e) {
+        	 closeRsStmtConn(rs,stmt,conn);
             throw new IContactsException("getTransferts", e);
-        } finally {
-            closeRsStmtConn(rs,stmt,conn);
         }
     }
 
@@ -1055,7 +1075,7 @@ public class SQLDataService {
 
             String requete = "SELECT COUNT (*) FROM h_annuaire.T_UTILISATEURSAPPLICATIONS_UAP uap, h_annuaire.T_APPLICATIONS_APP app WHERE app.app_alias = ?  AND uap.uap_utl_id = ? AND app.app_id = uap.uap_app_id";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, aliasApplication);
             stmt.setString(2, idUtilisateur);
             rs = stmt.executeQuery();
@@ -1085,7 +1105,7 @@ public class SQLDataService {
                     + " FROM HOTLINE.T_HCONTACTS_HABILITATIONS_HCH hch WHERE hch.HCH_UTL_ID = ? ";
             conn = getConnexion();
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idUtilisateur);
 
             rs = stmt.executeQuery();
@@ -1115,7 +1135,7 @@ public class SQLDataService {
             LibelleCode unDisplay = null;
             String requete = "SELECT s.CODE, s.LIBELLE, s.ORDRE FROM HOTLINE.CODES s WHERE s.jdoclass='hosta.crm.impl.codes.Satisfaction' and s.ALIAS in( 'NEUTRE', 'SATISFAIT', 'INSATISFAIT', 'DANGER') order by 3 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1146,7 +1166,7 @@ public class SQLDataService {
             String requete = "SELECT s.CODE, s.LIBELLE, s.ORDRE FROM HOTLINE.CODES s WHERE s.jdoclass='hosta.crm.impl.codes.TypeAppelant' "
                     + "and s.ALIAS in( 'HB', 'ASSUREUR', 'COURTIER', 'DELEGUE', 'PROFSANTE', 'PROSPECT', 'AUTRE') order by 2 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1179,7 +1199,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.CODES s WHERE s.jdoclass='hosta.crm.impl.codes.TypeAppelant' "
                     + "and s.ALIAS in( 'ASSURE', 'ENTREPRISE', 'HB', 'ASSUREUR', 'COURTIER', 'DELEGUE', 'PROFSANTE', 'PROSPECT', 'AUTRE') order by 2 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1199,40 +1219,36 @@ public class SQLDataService {
         }
     }
 
-    public static Collection<LibelleCode> getCodesClotures() {
+	public static Collection<LibelleCode> getCodesClotures() {
 
-        Connection conn = null;
-        PreparedStatement stmt = null;
-        ResultSet rs = null;
+		Connection conn = null;
+		PreparedStatement stmt = null;
+		ResultSet rs = null;
 
-        Collection<LibelleCode> res = new ArrayList<LibelleCode>();
-        try {
-            LibelleCode unDisplay = null;
-            String requete = "SELECT s.CODE, s.LIBELLE, s.ALIAS, s.ORDRE FROM HOTLINE.CODES s "
-                    + "WHERE s.JDOCLASS = 'hosta.crm.impl.codes.Cloture' "
-                    + "and s.ALIAS in(  'CLOTURE', 'ATRAITER',  'APPELSORTANT', 'HORSCIBLE', 'AUTRECAMP' ) order by 2 asc";
-            conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+		Collection<LibelleCode> res = new ArrayList<LibelleCode>();
+		try {
+			LibelleCode unDisplay = null;
+			String requete = "SELECT s.CODE, s.LIBELLE, s.ALIAS, s.ORDRE FROM HOTLINE.CODES s " + "WHERE s.JDOCLASS = 'hosta.crm.impl.codes.Cloture' "
+					+ "and s.ALIAS in('CLOTURE', 'ATRAITER', 'APPELSORTANT', 'AUTRECAMP', 'TRANSFERE_A', 'TRANSFERE_EX') " + "order by ORDRE asc";
+			conn = getConnexion();
+			stmt = prepareStatement(conn, requete);
 
-            rs = stmt.executeQuery();
-            while (rs.next()) {
-                unDisplay = new LibelleCode();
-                unDisplay.setCode((rs.getString(1) != null) ? rs.getString(1)
-                        : "");
-                unDisplay.setLibelle((rs.getString(2) != null) ? rs
-                        .getString(2) : "");
-                unDisplay.setAlias((rs.getString(3) != null) ? rs.getString(3)
-                        : "");
-                res.add(unDisplay);
-            }
-            stmt.clearParameters();
-            return res;
-        } catch (Exception e) {
-            throw new IContactsException("getCodesClotures", e);
-        } finally {
-            closeRsStmtConn(rs,stmt,conn);
-        }
-    }
+			rs = stmt.executeQuery();
+			while (rs.next()) {
+				unDisplay = new LibelleCode();
+				unDisplay.setCode((rs.getString(1) != null) ? rs.getString(1) : "");
+				unDisplay.setLibelle((rs.getString(2) != null) ? rs.getString(2) : "");
+				unDisplay.setAlias((rs.getString(3) != null) ? rs.getString(3) : "");
+				res.add(unDisplay);
+			}
+			stmt.clearParameters();
+			return res;
+		} catch (Exception e) {
+			throw new IContactsException("getCodesClotures", e);
+		} finally {
+			closeRsStmtConn(rs, stmt, conn);
+		}
+	}
 
     public static Collection<LibelleCode> getCodesCloturesRecherche() {
 
@@ -1245,9 +1261,10 @@ public class SQLDataService {
             LibelleCode unDisplay = null;
             String requete = "SELECT s.CODE, s.LIBELLE, s.ALIAS, s.ORDRE FROM HOTLINE.CODES s "
                     + "WHERE s.JDOCLASS = 'hosta.crm.impl.codes.Cloture' "
-                    + "and s.ALIAS in(  'CLOTURE', 'ATRAITER',  'APPELSORTANT', 'HORSCIBLE', 'ACQUITTEMENT') order by 2 asc";
+                    + "and s.ALIAS in('CLOTURE', 'ATRAITER',  'APPELSORTANT', 'HORSCIBLE', 'ACQUITTEMENT', 'TRANSFERE_A', 'TRANSFERE_EX') "
+                    + "order by ORDRE asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1258,6 +1275,15 @@ public class SQLDataService {
                         .getString(2) : "");
                 unDisplay.setAlias((rs.getString(3) != null) ? rs.getString(3)
                         : "");
+                if ("ATRAITER".equals(unDisplay.getAlias())) {
+                	unDisplay.setLibelle("H.Courriers N2");
+                } else if ("CLOTURE".equals(unDisplay.getAlias())) {
+                	unDisplay.setLibelle("Traité N1");
+                } else if ("TRANSFERE_A".equals(unDisplay.getAlias())) {
+                	unDisplay.setLibelle("Mail interne");
+                } else if ("TRANSFERE_EX".equals(unDisplay.getAlias())) {
+                	unDisplay.setLibelle("Mail externe");
+                }
                 res.add(unDisplay);
             }
             stmt.clearParameters();
@@ -1278,7 +1304,7 @@ public class SQLDataService {
         try {
             String requete = "SELECT s.CODE FROM HOTLINE.CODES s WHERE s.JDOCLASS = 'hosta.crm.impl.codes.Cloture' and s.ALIAS =  ? ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, alias);
 
             rs = stmt.executeQuery();
@@ -1304,7 +1330,7 @@ public class SQLDataService {
             LibelleCode unDisplay = null;
             String requete = "SELECT s.CODE, s.LIBELLE, s.ORDRE FROM HOTLINE.CODES s WHERE s.JDOCLASS = 'hosta.crm.impl.codes.TypeAppelant' and s.ALIAS in(  'ENTREPRISE', 'ASSURE',  'AUTRE' ) order by 3 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1335,7 +1361,7 @@ public class SQLDataService {
             LibelleCode unDisplay = null;
             String requete = "SELECT ID, LIBELLE FROM EVENEMENT.SOUS_STATUT ss where ss.ACTIF = 1  order by LIBELLE ASC";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1366,7 +1392,7 @@ public class SQLDataService {
             String requete = "SELECT ID, LIBELLE FROM EVENEMENT.SOUS_STATUT ss where ss.ACTIF = 1  order by LIBELLE ASC";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
 
@@ -1403,7 +1429,7 @@ public class SQLDataService {
                     + "and s.ALIAS in( 'HB', 'ASSUREUR', 'COURTIER', 'DELEGUE', 'PROFSANTE', 'PROSPECT', 'AUTRE') order by 2 asc";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             if ("CREATION".equals(mode)) {
@@ -1441,7 +1467,7 @@ public class SQLDataService {
                     + "WHERE UPPER(civ.LIBELLE) in ('MONSIEUR', 'MADEMOISELLE', 'MADAME') and civ.MUTUELLE_ID = 1 order by 2 asc";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
 
@@ -1479,7 +1505,7 @@ public class SQLDataService {
             LibelleCode unDisplay = null;
             String requete = "SELECT s.CODE, s.LIBELLE, s.ORDRE FROM HOTLINE.CODES s WHERE s.JDOCLASS = 'hosta.crm.impl.codes.PeriodRappel' order by 3 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1512,7 +1538,7 @@ public class SQLDataService {
             LibelleCode unDisplay = null;
             String requete = "SELECT distinct r.code, r.LIBELLE FROM HOTLINE.CODES r WHERE r.JDOCLASS = 'hosta.crm.impl.codes.Regime' and rownum <=3";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1567,7 +1593,7 @@ public class SQLDataService {
                     + "and t.ID = telecamp.TELEACTEUR_ID "
                     + "order by c.actif desc, c.LIBELLE asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, teleacteur_id);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1590,15 +1616,15 @@ public class SQLDataService {
         }
     }
     
-    public static Scenario getScenarioPourCampagne(String libCampagne, String codeMutuelle, String codeEntite) {
-    	Scenario result = null;
-    	
-
-    	
-    	return result;
+    public static Campagne getCampagneById(String idCampagne) {
+    	return getCampagne("ID", idCampagne);
+    }
+    
+    public static Campagne getCampagneByLibelle(String libelle) {
+    	return getCampagne("LIBELLE", libelle);
     }
 
-    public static Campagne getCampagneById(String idCampagne) {
+    public static Campagne getCampagne(String cleCritere, String valeurCritere) {
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -1606,33 +1632,28 @@ public class SQLDataService {
         Collection<Camp_EntiteGestion> res = new ArrayList<Camp_EntiteGestion>();
         try {
             Campagne unDisplay = null;
-            String requete = "SELECT ID, CODEFT, LIBELLE, TEL, ACTIF,FLAG_ENTITE_GESTION FROM HOTLINE.CAMPAGNE where ID = ?";
+            String requete = "SELECT ID, CODEFT, LIBELLE, TEL, ACTIF,FLAG_ENTITE_GESTION FROM HOTLINE.CAMPAGNE where TRIM(" + cleCritere + ") = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
-            stmt.setString(1, idCampagne);
+            stmt = prepareStatement(conn, requete);
+            stmt.setString(1, valeurCritere.trim());
             rs = stmt.executeQuery();
             while (rs.next()) {
                 unDisplay = new Campagne();
                 unDisplay.setId(rs.getString(1));
-                unDisplay.setCodeFT((rs.getString(2) != null) ? rs.getString(2)
-                        : "");
-                unDisplay.setLibelle((rs.getString(3) != null) ? rs
-                        .getString(3) : "");
-                unDisplay.setTel((rs.getString(4) != null) ? rs.getString(4)
-                        : "");
-                unDisplay.setActif((rs.getString(5) != null) ? rs.getString(5)	
-                        : "");
+                unDisplay.setCodeFT((rs.getString(2) != null) ? rs.getString(2): "");
+                unDisplay.setLibelle((rs.getString(3) != null) ? rs.getString(3) : "");
+                unDisplay.setTel((rs.getString(4) != null) ? rs.getString(4) : "");
+                unDisplay.setActif((rs.getString(5) != null) ? rs.getString(5) : "");
                 unDisplay.setFLAG_ENTITE_GESTION((rs.getInt(6) != 0) ? rs.getInt(6):0);
             }
             stmt.clearParameters();
-            if (unDisplay.getFLAG_ENTITE_GESTION()==1)
-            {
+            if (unDisplay != null && unDisplay.getFLAG_ENTITE_GESTION() == 1) {
             	Camp_EntiteGestion unDisplay_Camp = null;
             	requete="SELECT ce.campagne_id,ce.entite_gestion_id,eg.LIBELLE,ce.scenario_id from HOTLINE.CAMPENTITEGESTION ce,APPLICATION.ENTITE_GESTION eg WHERE CAMPAGNE_ID=? and eg.ID = ce.ENTITE_GESTION_ID";
             	closeRsStmtConn(rs,stmt,conn);
             	conn = getConnexion();
-                stmt = conn.prepareStatement(requete);
-                stmt.setString(1, idCampagne);
+                stmt = prepareStatement(conn, requete);
+                stmt.setString(1, unDisplay.getId());
                 rs = stmt.executeQuery();
                 while (rs.next()) {
                 	unDisplay_Camp = new Camp_EntiteGestion();
@@ -1667,7 +1688,7 @@ public class SQLDataService {
     	String requete = "SELECT SCENARIO_ID from HOTLINE.CAMPENTITEGESTION where CAMPAGNE_ID=? AND ENTITE_GESTION_ID=? ";
         
         conn = getConnexion();
-        stmt = conn.prepareStatement(requete);
+        stmt = prepareStatement(conn, requete);
         stmt.setString(1, campagne_id);
         stmt.setString(2, entitegestion_id);
         rs = stmt.executeQuery();
@@ -1697,10 +1718,10 @@ public class SQLDataService {
 
         try {
             Mutuelle unDisplay = null;
-            String requete = "SELECT m.ID, m.LIBELLE, m.ACTIF FROM APPLICATION.MUTUELLE m, HOTLINE.CAMPMUT cm "
+            String requete = "SELECT m.ID, m.LIBELLE, m.ACTIF, m.CODE FROM APPLICATION.MUTUELLE m, HOTLINE.CAMPMUT cm "
                     + "WHERE cm.CAMPAGNE_ID = ? and cm.MUTUELLE_ID = m.ID order by LIBELLE ASC";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, campagne_id);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1708,6 +1729,7 @@ public class SQLDataService {
                 unDisplay.setId(rs.getString(1));
                 unDisplay.setLibelle(rs.getString(2));
                 unDisplay.setActif(rs.getString(3));
+                unDisplay.setCode(rs.getString(4));
                 res.add(unDisplay);
             }
             stmt.clearParameters();
@@ -1736,7 +1758,7 @@ public class SQLDataService {
                     + "and trunc(m.DATEDEBUT)<= trunc(sysdate) "
                     + "and ( trunc(m.DATEFIN) >= trunc(sysdate) or m.datefin is null )";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, campagne_id);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1769,7 +1791,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.MESSAGE m, HOTLINE.CAMPAGNE c "
                     + "WHERE m.CAMPAGNE_ID = c.ID AND m.ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, message_id);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1805,7 +1827,7 @@ public class SQLDataService {
             String requete = "SELECT t.TRA_ID, t.TRA_LIBELLE, t.TRA_EMAIL FROM HOTLINE.t_TRANSFERTS_TRA t "
                     + "WHERE t.TRA_ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, transfert_id);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -1815,6 +1837,7 @@ public class SQLDataService {
                         .getString(2) : "");
                 unDisplay.setTRA_EMAIL((rs.getString(3) != null) ? rs
                         .getString(3) : "");
+                unDisplay.setCampagnesAffectees(getCampagnesTransfert(transfert_id));
             }
             stmt.clearParameters();
             return unDisplay;
@@ -1825,38 +1848,76 @@ public class SQLDataService {
             closeRsStmtConn(rs,stmt,conn);
         }
     }
+    
+    public static Collection<Campagne> getCampagnesTransfert(String transfert_id) {
 
-    public static Scenario getScenarioByCampagneMutuelle(String campagne_id,
-            String mutuelle_id) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        Collection<Campagne> result = null;
+        
+        try {
+        	
+            Campagne unDisplay = null;
+            String requete = "SELECT TCA_CAMPAGNE_ID FROM HOTLINE.T_TRANSFERTCAMPAGNE_TCA "
+                    + "WHERE TCA_TRA_ID = ?";
+            conn = getConnexion();
+            stmt = prepareStatement(conn, requete);
+            stmt.setString(1, transfert_id);
+            rs = stmt.executeQuery();
+            
+            while (rs.next()) {
+            	String idCampagne = rs.getString(1);            	
+                unDisplay = getCampagneById(idCampagne);
+                if (result == null) {
+                	result = new ArrayList<Campagne>();
+                }
+                result.add(unDisplay);
+            }
+            stmt.clearParameters();
+            return result;
+            
+        } catch (Exception e) {
+            LOGGER.error("getTransfertById", e);
+            return null;
+        } finally {
+            closeRsStmtConn(rs,stmt, conn);
+        }
+    }
+    
+
+    public static Scenario getScenarioByCampagneMutuelle(String campagne_id, String mutuelle_id) {
         Connection conn = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
 
         try {
             Scenario unDisplay = null;
-            String requete = "SELECT DISTINCT sc.ID, sc.CONSIGNES, sc.DISCOURS, se.SCENARIO_ID "
+            String requete = "SELECT DISTINCT sc.ID, sc.CONSIGNES, sc.DISCOURS, se.SCENARIO_ID, sc.LIBELLE "
                     + "FROM HOTLINE.SCENARIO sc "
                     + "LEFT OUTER JOIN HOTLINE.SCENARIO_EVENEMENT se ON sc.ID = se.SCENARIO_ID AND se.S_MOTIF_EVENEMENT_ID=? "
                     + "WHERE sc.CAMPAGNE_ID = ? AND sc.MUTUELLE_ID = ? ";
                     
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, _evenement_pec_id);
             stmt.setString(2, campagne_id);
             stmt.setString(3, mutuelle_id);
             rs = stmt.executeQuery();
-            if(rs.next()) {
+            
+            if (rs.next()) {
                 
                 unDisplay = new Scenario();
                 unDisplay.setID(rs.getString(1));
-                unDisplay.setCONSIGNES((rs.getString(2) != null) ? rs
-                        .getString(2) : "");
-                unDisplay.setDISCOURS((rs.getString(3) != null) ? rs
-                        .getString(3) : "");
+                unDisplay.setCONSIGNES((rs.getString(2) != null) ? rs.getString(2) : "");
+                unDisplay.setDISCOURS((rs.getString(3) != null) ? rs.getString(3) : "");
+                unDisplay.setLIBELLE((rs.getString(5) != null) ? rs.getString(5) : "");
                 
                 unDisplay.setModelesPEC(new ArrayList<ModelePEC>());
                 
-                if( rs.getString(4) != null ){
+                if (rs.getString(4) != null ) {
+                	
+                	rs.close(); 
                
                     stmt.clearParameters();
                     requete = "SELECT mp.ID, mp.LIBELLE, mp.OPERATEUR, mp.ORGANISME, "
@@ -1867,7 +1928,7 @@ public class SQLDataService {
                             + "WHERE se.SCENARIO_ID = ? "
                             + "     AND se.S_MOTIF_EVENEMENT_ID=?"
                             + "     AND mp.ID = se.MODELEPEC_ID";
-                    stmt = conn.prepareStatement(requete);
+                    stmt = prepareStatement(conn, requete);
                     stmt.setString(1, unDisplay.getID());
                     stmt.setString(2, _evenement_pec_id); 
                     rs = stmt.executeQuery();
@@ -1899,8 +1960,13 @@ public class SQLDataService {
             closeRsStmtConn(rs,stmt,conn);
         }
     }
-
+    
     public static Collection<Motif> getMotifsByScenarioId(String scenario_id) {
+
+        return getMotifsByScenarioId(scenario_id, false);
+    }
+
+    public static Collection<Motif> getMotifsByScenarioId(String scenario_id, boolean complet) {
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -1912,16 +1978,19 @@ public class SQLDataService {
             String requete = "SELECT m.ID, m.LIBELLE FROM HOTLINE.MOTIFAPPEL m "
                     + "WHERE m.SCENARIO_ID = ? and m.ACTIF = 1 order by 2 asc ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, scenario_id);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
-                unDisplay = new Motif();
-                unDisplay.setId((rs.getString(1) != null) ? rs.getString(1)
-                        : "");
-                unDisplay.setLibelle((rs.getString(2) != null) ? rs
-                        .getString(2) : "");
+				if (!complet) {
+					unDisplay = new Motif();
+					unDisplay.setId((rs.getString(1) != null) ? rs.getString(1) : "");
+					unDisplay.setLibelle((rs.getString(2) != null) ? rs.getString(2) : "");
+				} else {
+					String motif_id = rs.getString(1);
+					unDisplay = getMotifById(motif_id);
+				}
                 res.add(unDisplay);
             }
             stmt.clearParameters();
@@ -1947,7 +2016,7 @@ public class SQLDataService {
             String requete = "SELECT sm.ID, sm.LIBELLE FROM HOTLINE.SMOTIFAPPEL sm "
                     + "WHERE sm.MOTIF_ID = ? and sm.ACTIF = 1 order by 2 asc ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, motif_id);
 
             rs = stmt.executeQuery();
@@ -1980,7 +2049,7 @@ public class SQLDataService {
             Point unDisplay = null;
             String requete = "SELECT p.ID, p.LIBELLE FROM HOTLINE.Point p WHERE p.S_MOTIF_ID = ? and p.ACTIF = 1 order by 2 asc ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, sous_motif_id);
 
             rs = stmt.executeQuery();
@@ -2014,7 +2083,7 @@ public class SQLDataService {
             SousPoint unDisplay = null;
             String requete = "SELECT sp.ID, sp.LIBELLE FROM HOTLINE.SPoint sp WHERE sp.POINT_ID = ? and sp.ACTIF = 1 order by 2 asc ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, point_id);
 
             rs = stmt.executeQuery();
@@ -2050,7 +2119,7 @@ public class SQLDataService {
                     + "LEFT OUTER JOIN HOTLINE.RATTACHEMENT_PEC p ON p.motif_id=m.id "
                     + "WHERE m.ID = ?  ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, motif_id);
             rs = stmt.executeQuery();
             if (rs.next()) {
@@ -2073,7 +2142,7 @@ public class SQLDataService {
                             + "     HOTLINE.RATTACHEMENT_PEC rp "
                             + "WHERE rp.motif_id = ?  "
                             + "    AND rp.modelepec_id=mp.id ";
-                    stmt = conn.prepareStatement(requete);
+                    stmt = prepareStatement(conn, requete);
                     stmt.setString(1, motif_id);
                     rs = stmt.executeQuery();
                     
@@ -2100,7 +2169,7 @@ public class SQLDataService {
                         + "     HOTLINE.MODELE_PROCEDURE mp "
                         + "WHERE prc.motif_id = ?  "
                         + "    AND mp.id=prc.modprocedure_id ";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setString(1, motif_id);
                 rs = stmt.executeQuery();
                 
@@ -2145,7 +2214,7 @@ public class SQLDataService {
                     + "     HOTLINE.SMOTIFAPPEL sm " + "WHERE sm.ID = ? "
                     + "	 AND m.ID = sm.motif_id";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, leSousMotif.getId());
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -2182,7 +2251,7 @@ public class SQLDataService {
                     + "     HOTLINE.POINT p "
                     + "WHERE p.ID = ? " + "	 AND sm.ID = p.s_motif_id";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, lePoint.getId());
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -2221,7 +2290,7 @@ public class SQLDataService {
                     + "LEFT OUTER JOIN HOTLINE.RATTACHEMENT_PEC p ON p.s_motif_id=sm.id "
                     + "WHERE sm.ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, sous_motif_id);
             rs = stmt.executeQuery();
             if(rs.next()) {
@@ -2256,7 +2325,7 @@ public class SQLDataService {
                             + "     HOTLINE.RATTACHEMENT_PEC rp "
                             + "WHERE rp.s_motif_id = ?  "
                             + "    AND rp.modelepec_id=mp.id ";
-                    stmt = conn.prepareStatement(requete);
+                    stmt = prepareStatement(conn, requete);
                     stmt.setString(1, sous_motif_id);
                     rs = stmt.executeQuery();
                     
@@ -2283,7 +2352,7 @@ public class SQLDataService {
                         + "     HOTLINE.MODELE_PROCEDURE mp "
                         + "WHERE prc.s_motif_id = ?  "
                         + "    AND mp.id=prc.modprocedure_id ";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setString(1, sous_motif_id);
                 rs = stmt.executeQuery();
                 
@@ -2329,7 +2398,7 @@ public class SQLDataService {
                     + "WHERE sp.ID = ? " + "	 AND p.ID = sp.point_id";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, leSousPoint.getId());
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -2368,7 +2437,7 @@ public class SQLDataService {
                     + "WHERE p.ID = ?  ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, point_id);
             rs = stmt.executeQuery();
             if(rs.next()) {
@@ -2395,7 +2464,7 @@ public class SQLDataService {
                             + "WHERE rp.point_id = ?  "
                             + "    AND rp.modelepec_id=mp.id ";
                     
-                    stmt = conn.prepareStatement(requete);
+                    stmt = prepareStatement(conn, requete);
                     stmt.setString(1, point_id);
                     rs = stmt.executeQuery();
                     
@@ -2422,7 +2491,7 @@ public class SQLDataService {
                         + "     HOTLINE.MODELE_PROCEDURE mp "
                         + "WHERE prc.point_id = ?  "
                         + "    AND mp.id=prc.modprocedure_id ";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setString(1, point_id);
                 rs = stmt.executeQuery();
                 
@@ -2469,7 +2538,7 @@ public class SQLDataService {
                     + "LEFT OUTER JOIN HOTLINE.RATTACHEMENT_PEC p ON p.s_point_id = sp.id "
                     + "WHERE sp.ID = ?  ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, sous_point_id);
             rs = stmt.executeQuery();
             if (rs.next()) {
@@ -2495,7 +2564,7 @@ public class SQLDataService {
                             + "     HOTLINE.RATTACHEMENT_PEC rp "
                             + "WHERE rp.s_point_id = ?  "
                             + "    AND rp.modelepec_id=mp.id ";
-                    stmt = conn.prepareStatement(requete);
+                    stmt = prepareStatement(conn, requete);
                     stmt.setString(1, sous_point_id);
                     rs = stmt.executeQuery();
                     
@@ -2522,7 +2591,7 @@ public class SQLDataService {
                         + "     HOTLINE.MODELE_PROCEDURE mp "
                         + "WHERE prc.s_point_id = ?  "
                         + "    AND mp.id=prc.modprocedure_id ";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setString(1, sous_point_id);
                 rs = stmt.executeQuery();
                 
@@ -2566,7 +2635,7 @@ public class SQLDataService {
 
             String requete = "SELECT c.CODE FROM HOTLINE.CODES c WHERE c.jdoclass='hosta.crm.impl.codes.TypeAppelant' AND c.ALIAS = 'ASSURE'";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 res = rs.getString(1);
@@ -2581,7 +2650,7 @@ public class SQLDataService {
         }
     }
 
-    public static Collection rechercheAssures(HttpServletRequest request) {
+    public static Collection<Object> rechercheAssures(HttpServletRequest request) {
 
         // HABILITATION : EG
     	 Campagne Mycampagne = (Campagne) request.getSession()
@@ -2589,10 +2658,15 @@ public class SQLDataService {
     	
         Connection conn = null;
         PreparedStatement stmt = null;
-        Collection res = new ArrayList();
+        Collection<Object> res = new ArrayList<Object>();
         ObjetRecherche unDisplay = null;
-
-        String cle_recherche = (String) request.getParameter("cle_recherche");
+        
+        String cle_recherche = null;
+        if (request.getSession().getAttribute(FicheAppelAction._var_session_recherche_aux) == null) {
+        	cle_recherche = (String) request.getParameter("cle_recherche");
+        } else {
+        	cle_recherche = (String) request.getParameter("cle_recherche_aux");
+        }       
 
         String tous_client = (String) request.getParameter("tous_client");
         String inclure_inactifs = (String) request
@@ -2859,69 +2933,45 @@ public class SQLDataService {
                 limite.setTaille(rowcount);
                 res.add(limite);
             } else {
-                while (rs.next()) {
-                    unDisplay = new ObjetRecherche();
-                    
-                    unDisplay.setMutuelle((rs.getString(1) != null) ? rs
-                            .getString(1) : "&nbsp;");
-                    unDisplay
-                            .setCodeAdherentNumeroContrat((rs.getString(2) != null) ? rs
-                                    .getString(2) : "&nbsp;");
-                    unDisplay.setCivilite((rs.getString(3) != null) ? rs
-                            .getString(3) : "&nbsp;");
-                    unDisplay.setNom((rs.getString(4) != null) ? rs
-                            .getString(4) : "&nbsp;");
-                    unDisplay.setPrenom((rs.getString(5) != null) ? rs
-                            .getString(5) : "&nbsp;");
-                    unDisplay.setQualite((rs.getString(6) != null) ? rs
-                            .getString(6) : "&nbsp;");
-                    unDisplay
-                            .setDateNaissance((rs.getTimestamp(7) != null) ? rs
-                                    .getTimestamp(7) : null);
-                    unDisplay.setNumeroSecu((rs.getString(8) != null) ? rs
-                            .getString(8) : "&nbsp;");
-                    unDisplay.setRadie((rs.getString(9) != null) ? rs
-                            .getString(9) : "&nbsp;");
-                    unDisplay.setOutilGestion((rs.getString(10) != null) ? rs
-                            .getString(10) : "&nbsp;");
-                    unDisplay.setId((rs.getString(11) != null) ? rs
-                            .getString(11) : "&nbsp;");
-                    unDisplay.setMutuelleId((rs.getString(12) != null) ? rs
-                            .getString(12) : "&nbsp;");
-                    unDisplay.setEntite_gestion_id((rs.getString(13) != null) ? rs
-                            .getString(13) : "&nbsp;");
-                    unDisplay.setLibelle_entite_gestion((rs.getString(14) != null) ? rs
-                            .getString(14) : "&nbsp;");
-                    
-                    unDisplay.setClickable((rs.getString(15) != null) ? rs
-                            .getString(15) : "&nbsp;");
-                    
-                    Collection<Camp_EntiteGestion> Camp_EntiteGestions = new ArrayList<Camp_EntiteGestion>();
-                    Camp_EntiteGestions = Mycampagne.getCamp_EntiteGestions();
-                    String ok="ok";
-                    if (Mycampagne.getFLAG_ENTITE_GESTION()==1)
-                    {
-                    	ok="";
-                    for (int camp=0; camp< Camp_EntiteGestions.size();camp++)
-                    {
-                    	Camp_EntiteGestion myentite = (Camp_EntiteGestion) Camp_EntiteGestions.toArray()[camp];
-                    	if (unDisplay.getEntite_gestion_id().equals(myentite.getEntite_gestion_id()))
-                    	{
-                    		ok="ok";
-                    	}
-                    }
-                    }
-                    if (ok=="ok")
-                    {
-                    	 unDisplay.setEntite_gestion_id((rs.getString(13) != null) ? rs
-                                 .getString(13) : "&nbsp;");
-                    }
-                    else
-                    {
-                    	unDisplay.setEntite_gestion_id("-1");
-                    }
-                    res.add(unDisplay);
-                }
+				while (rs.next()) {
+					unDisplay = new ObjetRecherche();
+
+					unDisplay.setMutuelle((rs.getString(1) != null) ? rs.getString(1) : "&nbsp;");
+					unDisplay.setCodeAdherentNumeroContrat((rs.getString(2) != null) ? rs.getString(2) : "&nbsp;");
+					unDisplay.setCivilite((rs.getString(3) != null) ? rs.getString(3) : "&nbsp;");
+					unDisplay.setNom((rs.getString(4) != null) ? rs.getString(4) : "&nbsp;");
+					unDisplay.setPrenom((rs.getString(5) != null) ? rs.getString(5) : "&nbsp;");
+					unDisplay.setQualite((rs.getString(6) != null) ? rs.getString(6) : "&nbsp;");
+					unDisplay.setDateNaissance((rs.getTimestamp(7) != null) ? rs.getTimestamp(7) : null);
+					unDisplay.setNumeroSecu((rs.getString(8) != null) ? rs.getString(8) : "&nbsp;");
+					unDisplay.setRadie((rs.getString(9) != null) ? rs.getString(9) : "&nbsp;");
+					unDisplay.setOutilGestion((rs.getString(10) != null) ? rs.getString(10) : "&nbsp;");
+					unDisplay.setId((rs.getString(11) != null) ? rs.getString(11) : "&nbsp;");
+					unDisplay.setMutuelleId((rs.getString(12) != null) ? rs.getString(12) : "&nbsp;");
+					unDisplay.setEntite_gestion_id((rs.getString(13) != null) ? rs.getString(13) : "&nbsp;");
+					unDisplay.setLibelle_entite_gestion((rs.getString(14) != null) ? rs.getString(14) : "&nbsp;");
+
+					unDisplay.setClickable((rs.getString(15) != null) ? rs.getString(15) : "&nbsp;");
+
+					Collection<Camp_EntiteGestion> Camp_EntiteGestions = new ArrayList<Camp_EntiteGestion>();
+					Camp_EntiteGestions = Mycampagne.getCamp_EntiteGestions();
+					String ok = "ok";
+					if (Mycampagne.getFLAG_ENTITE_GESTION() == 1) {
+						ok = "";
+						for (int camp = 0; camp < Camp_EntiteGestions.size(); camp++) {
+							Camp_EntiteGestion myentite = (Camp_EntiteGestion) Camp_EntiteGestions.toArray()[camp];
+							if (unDisplay.getEntite_gestion_id().equals(myentite.getEntite_gestion_id())) {
+								ok = "ok";
+							}
+						}
+					}
+					if (ok == "ok") {
+						unDisplay.setEntite_gestion_id((rs.getString(13) != null) ? rs.getString(13) : "&nbsp;");
+					} else {
+						unDisplay.setEntite_gestion_id("-1");
+					}
+					res.add(unDisplay);
+				}
             }
 
             stmt.clearParameters();
@@ -3611,71 +3661,45 @@ public class SQLDataService {
                     + "ben.CARTEVITALE, ben.REGIME_CODE, ben.DATEPREMIEREADHESION, ben.ENTITE_GESTION_ID EG, ben.PERSONNE_ID, "
                     + "ben.ETABLISSEMENT_ID, ben.PRELEVEMENT_RIB_ID, ben.VIREMENT_RIB_ID, ben.ACTIF, ben.DATERADIATION, "
                     + "ben.POSNOEMIE_CODE, ben.BEN_OUS_ID, ben.BEN_OFFSHORE, ben.BEN_OFA_ID, ben.DATEADHESION, "
-                    + "qual.LIBELLE, ous.OUS_LIB FROM APPLICATION.BENEFICIAIRE ben, APPLICATION.CODES qual, APPLICATION.T_OUTILSSOURCE_OUS ous  "
+                    + "qual.LIBELLE, ous.OUS_LIB "
+                    + "FROM APPLICATION.BENEFICIAIRE ben, APPLICATION.CODES qual, APPLICATION.T_OUTILSSOURCE_OUS ous  "
                     + "WHERE ID = ? and ben.QUALITE_CODE = qual.CODE(+) and ben.BEN_OUS_ID = ous.OUS_ID(+) ) w "
                     + "left outer join hotline.entitegestionblacklistee egb on w.EG = egb.ENTITEGESTION_ID ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idBeneficaire);
             rs = stmt.executeQuery();
-            while (rs.next()) {
-                unDisplay = new Beneficiaire();
-                unDisplay.setID(rs.getString(1));
-                unDisplay.setMUTUELLE_ID((rs.getString(2) != null) ? rs
-                        .getString(2) : "");
-                unDisplay.setCODE((rs.getString(3) != null) ? rs.getString(3)
-                        : "");
-                unDisplay.setQUALITE_CODE((rs.getString(4) != null) ? rs
-                        .getString(4) : "");
-                unDisplay.setNUMEROSS((rs.getString(5) != null) ? rs
-                        .getString(5) : "");
-                unDisplay.setCLESS((rs.getString(6) != null) ? rs.getString(6)
-                        : "");
-                unDisplay.setCAISSERO((rs.getString(7) != null) ? rs
-                        .getString(7) : "");
-                unDisplay.setCENTRERO((rs.getString(8) != null) ? rs
-                        .getString(8) : "");
-                unDisplay.setCARTEVITALE((rs.getString(9) != null) ? rs
-                        .getString(9) : "");
-                unDisplay.setREGIME_CODE((rs.getString(10) != null) ? rs
-                        .getString(10) : "");
+			while (rs.next()) {
+				unDisplay = new Beneficiaire();
+				unDisplay.setID(rs.getString(1));
+				unDisplay.setMUTUELLE_ID((rs.getString(2) != null) ? rs.getString(2) : "");
+				unDisplay.setCODE((rs.getString(3) != null) ? rs.getString(3) : "");
+				unDisplay.setQUALITE_CODE((rs.getString(4) != null) ? rs.getString(4) : "");
+				unDisplay.setNUMEROSS((rs.getString(5) != null) ? rs.getString(5) : "");
+				unDisplay.setCLESS((rs.getString(6) != null) ? rs.getString(6) : "");
+				unDisplay.setCAISSERO((rs.getString(7) != null) ? rs.getString(7) : "");
+				unDisplay.setCENTRERO((rs.getString(8) != null) ? rs.getString(8) : "");
+				unDisplay.setCARTEVITALE((rs.getString(9) != null) ? rs.getString(9) : "");
+				unDisplay.setREGIME_CODE((rs.getString(10) != null) ? rs.getString(10) : "");
 
-                unDisplay
-                        .setDATEPREMIEREADHESION((rs.getTimestamp(11) != null) ? rs
-                                .getTimestamp(11) : null);
-                unDisplay.setENTITE_GESTION_ID((rs.getString(12) != null) ? rs
-                        .getString(12) : "");
-                unDisplay.setPERSONNE_ID((rs.getString(13) != null) ? rs
-                        .getString(13) : "");
-                unDisplay.setETABLISSEMENT_ID((rs.getString(14) != null) ? rs
-                        .getString(14) : "");
-                unDisplay.setPRELEVEMENT_RIB_ID((rs.getString(15) != null) ? rs
-                        .getString(15) : "");
-                unDisplay.setVIREMENT_RIB_ID((rs.getString(16) != null) ? rs
-                        .getString(16) : "");
-                unDisplay.setACTIF((rs.getString(17) != null) ? rs
-                        .getString(17) : "");
+				unDisplay.setDATEPREMIEREADHESION((rs.getTimestamp(11) != null) ? rs.getTimestamp(11) : null);
+				unDisplay.setENTITE_GESTION_ID((rs.getString(12) != null) ? rs.getString(12) : "");
+				unDisplay.setPERSONNE_ID((rs.getString(13) != null) ? rs.getString(13) : "");
+				unDisplay.setETABLISSEMENT_ID((rs.getString(14) != null) ? rs.getString(14) : "");
+				unDisplay.setPRELEVEMENT_RIB_ID((rs.getString(15) != null) ? rs.getString(15) : "");
+				unDisplay.setVIREMENT_RIB_ID((rs.getString(16) != null) ? rs.getString(16) : "");
+				unDisplay.setACTIF((rs.getString(17) != null) ? rs.getString(17) : "");
 
-                unDisplay.setDATERADIATION((rs.getTimestamp(18) != null) ? rs
-                        .getTimestamp(18) : null);
-                unDisplay.setPOSNOEMIE_CODE((rs.getString(19) != null) ? rs
-                        .getString(19) : "");
-                unDisplay.setBEN_OUS_ID((rs.getString(20) != null) ? rs
-                        .getString(20) : "");
-                unDisplay.setBEN_OFFSHORE((rs.getString(21) != null) ? rs
-                        .getString(21) : "");
-                unDisplay.setBEN_OFA_ID((rs.getString(22) != null) ? rs
-                        .getString(22) : "");
-                unDisplay.setDATEADHESION((rs.getTimestamp(23) != null) ? rs
-                        .getTimestamp(23) : null);
-                unDisplay.setQualite((rs.getString(24) != null) ? rs
-                        .getString(24) : null);
-                unDisplay.setOutilGestion((rs.getString(25) != null) ? rs
-                        .getString(25) : null);
-                unDisplay
-                        .setEntiteGestionSensible((rs.getString(26) != null) ? rs
-                                .getString(26) : null);
-            }
+				unDisplay.setDATERADIATION((rs.getTimestamp(18) != null) ? rs.getTimestamp(18) : null);
+				unDisplay.setPOSNOEMIE_CODE((rs.getString(19) != null) ? rs.getString(19) : "");
+				unDisplay.setBEN_OUS_ID((rs.getString(20) != null) ? rs.getString(20) : "");
+				unDisplay.setBEN_OFFSHORE((rs.getString(21) != null) ? rs.getString(21) : "");
+				unDisplay.setBEN_OFA_ID((rs.getString(22) != null) ? rs.getString(22) : "");
+				unDisplay.setDATEADHESION((rs.getTimestamp(23) != null) ? rs.getTimestamp(23) : null);
+				unDisplay.setQualite((rs.getString(24) != null) ? rs.getString(24) : null);
+				unDisplay.setOutilGestion((rs.getString(25) != null) ? rs.getString(25) : null);
+				unDisplay.setEntiteGestionSensible((rs.getString(26) != null) ? rs.getString(26) : null);
+			}
             stmt.clearParameters();
             return unDisplay;
         } catch (Exception e) {
@@ -3686,8 +3710,7 @@ public class SQLDataService {
         }
     }
 
-    public static fr.igestion.crm.bean.contrat.Personne getPersonneById(
-            String idPersonne) {
+    public static fr.igestion.crm.bean.contrat.Personne getPersonneById(String idPersonne) {
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -3703,46 +3726,30 @@ public class SQLDataService {
                     + "  AND p.CIVILITE_CODE = civ.CODE(+)";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idPersonne);
             rs = stmt.executeQuery();
-            while (rs.next()) {
-                unDisplay = new fr.igestion.crm.bean.contrat.Personne();
+			while (rs.next()) {
+				unDisplay = new fr.igestion.crm.bean.contrat.Personne();
 
-                unDisplay.setID(rs.getString(1));
-                unDisplay.setCODE((rs.getString(2) != null) ? rs.getString(2)
-                        : "");
-                unDisplay.setCIVILITE_CODE((rs.getString(3) != null) ? rs
-                        .getString(3) : "");
-                unDisplay.setSEXE_CODE((rs.getString(4) != null) ? rs
-                        .getString(4) : "");
-                unDisplay.setNOM((rs.getString(5) != null) ? rs.getString(5)
-                        : "");
-                unDisplay.setPRENOM((rs.getString(6) != null) ? rs.getString(6)
-                        : "");
-                unDisplay.setNOMJEUNEFILLE((rs.getString(7) != null) ? rs
-                        .getString(7) : "");
-                unDisplay.setDATENAISSANCE((rs.getTimestamp(8) != null) ? rs
-                        .getTimestamp(8) : null);
-                unDisplay
-                        .setSITUATIONFAMILIALE_CODE((rs.getString(9) != null) ? rs
-                                .getString(9) : "");
+				unDisplay.setID(rs.getString(1));
+				unDisplay.setCODE((rs.getString(2) != null) ? rs.getString(2) : "");
+				unDisplay.setCIVILITE_CODE((rs.getString(3) != null) ? rs.getString(3) : "");
+				unDisplay.setSEXE_CODE((rs.getString(4) != null) ? rs.getString(4) : "");
+				unDisplay.setNOM((rs.getString(5) != null) ? rs.getString(5) : "");
+				unDisplay.setPRENOM((rs.getString(6) != null) ? rs.getString(6) : "");
+				unDisplay.setNOMJEUNEFILLE((rs.getString(7) != null) ? rs.getString(7) : "");
+				unDisplay.setDATENAISSANCE((rs.getTimestamp(8) != null) ? rs.getTimestamp(8) : null);
+				unDisplay.setSITUATIONFAMILIALE_CODE((rs.getString(9) != null) ? rs.getString(9) : "");
 
-                unDisplay
-                        .setSITUATIONPROFESSIONNELLE_CODE((rs.getString(10) != null) ? rs
-                                .getString(10) : "");
-                unDisplay.setRANGNAISSANCE((rs.getString(11) != null) ? rs
-                        .getString(11) : "");
-                unDisplay.setADRESSE_ID((rs.getString(12) != null) ? rs
-                        .getString(12) : "");
-                unDisplay.setCSP_CODE((rs.getString(13) != null) ? rs
-                        .getString(13) : "");
-                unDisplay.setCSP((rs.getString(14) != null) ? rs.getString(14)
-                        : "");
-                unDisplay.setCivilite((rs.getString(15) != null) ? rs
-                        .getString(15) : "");
+				unDisplay.setSITUATIONPROFESSIONNELLE_CODE((rs.getString(10) != null) ? rs.getString(10) : "");
+				unDisplay.setRANGNAISSANCE((rs.getString(11) != null) ? rs.getString(11) : "");
+				unDisplay.setADRESSE_ID((rs.getString(12) != null) ? rs.getString(12) : "");
+				unDisplay.setCSP_CODE((rs.getString(13) != null) ? rs.getString(13) : "");
+				unDisplay.setCSP((rs.getString(14) != null) ? rs.getString(14) : "");
+				unDisplay.setCivilite((rs.getString(15) != null) ? rs.getString(15) : "");
 
-            }
+			}
             stmt.clearParameters();
             return unDisplay;
         } catch (Exception e) {
@@ -3773,7 +3780,7 @@ public class SQLDataService {
                     + "left outer join hotline.entitegestionblacklistee egb on w.EG = egb.ENTITEGESTION_ID";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idEtablissement);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -3845,7 +3852,7 @@ public class SQLDataService {
                     + "FROM APPLICATION.entite_gestion eg, APPLICATION.mutuelle mut "
                     + "WHERE EG.MUTUELLE_ID = MUT.ID and eg.id = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idEntiteGestion);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -3886,7 +3893,7 @@ public class SQLDataService {
                             + "ORDER BY 4 ASC";
             
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
             resultats = new ArrayList<EntiteGestion>();
             EntiteGestion unDisplay = null;
@@ -3929,7 +3936,7 @@ public class SQLDataService {
                 +"WHERE eg.id = ?";
             
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idEntiteGestion);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -3970,7 +3977,7 @@ public class SQLDataService {
                     + "FROM APPLICATION.entite_gestion eg "
                     + "WHERE EG.MUTUELLE_ID = ? AND eg.type = 'E'";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idMutuelle);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -4004,7 +4011,7 @@ public class SQLDataService {
                     + "COURRIEL, LIGNE_4, DEBUT_EFFET, FIN_EFFET FROM APPLICATION.ADRESSE  WHERE ID = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idAdresse);
             rs = stmt.executeQuery();
 
@@ -4062,7 +4069,7 @@ public class SQLDataService {
                     + "WHERE db.beneficiaire_id = ? AND db.code_detailvip = dv.code(+) ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idAdherent);
             rs = stmt.executeQuery();
 
@@ -4099,7 +4106,7 @@ public class SQLDataService {
                     + "WHERE de.etablissement_id = ? AND de.code_detailvip = dv.code(+) ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idEtablissement);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -4133,7 +4140,7 @@ public class SQLDataService {
 
             String requete = "SELECT APPLICATION.fs_getadhIdBybenefid(?) FROM DUAL ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idBeneficiaire);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -4165,7 +4172,7 @@ public class SQLDataService {
                 requete = "SELECT c.LIBELLE FROM HOTLINE.CODES c WHERE c.code = ? ";
             }
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, code);
             rs = stmt.executeQuery();
 
@@ -4195,7 +4202,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.POSTITBENEFICIAIRE p WHERE p.BENEFICIAIRE_ID = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, adherent_id);
             rs = stmt.executeQuery();
 
@@ -4237,7 +4244,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.POSTITETABLISSEMENT p WHERE p.ETABLISSEMENT_ID = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, etablissement_id);
             rs = stmt.executeQuery();
 
@@ -4275,7 +4282,7 @@ public class SQLDataService {
             String requete = "UPDATE HOTLINE.POSTITBENEFICIAIRE db set db.CONTENU = ? WHERE db.BENEFICIAIRE_ID = ? ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, contenu);
             stmt.setString(2, adherent_id);
             stmt.executeQuery();
@@ -4305,7 +4312,7 @@ public class SQLDataService {
             String requete = "UPDATE HOTLINE.POSTITETABLISSEMENT pe set pe.CONTENU = ? WHERE pe.ETABLISSEMENT_ID = ? ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, contenu);
             stmt.setString(2, etablissement_id);
             stmt.executeQuery();
@@ -4334,7 +4341,7 @@ public class SQLDataService {
             String requete = "DELETE FROM HOTLINE.POSTITBENEFICIAIRE pb WHERE pb.BENEFICIAIRE_ID = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, adherent_id);
             stmt.executeQuery();
             stmt.clearParameters();
@@ -4362,7 +4369,7 @@ public class SQLDataService {
             String requete = "DELETE FROM HOTLINE.POSTITETABLISSEMENT pe WHERE pe.ETABLISSEMENT_ID = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, etablissement_id);
             stmt.executeQuery();
             stmt.clearParameters();
@@ -4390,7 +4397,7 @@ public class SQLDataService {
             String requete = "INSERT INTO HOTLINE.POSTITBENEFICIAIRE ( BENEFICIAIRE_ID, DATE_CREATION, CREATEUR_ID, CONTENU) values (?, SYSDATE, ?, ?)";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, adherent_id);
             stmt.setString(2, teleacteur_id);
             stmt.setString(3, contenu);
@@ -4420,7 +4427,7 @@ public class SQLDataService {
             String requete = "INSERT INTO HOTLINE.POSTITETABLISSEMENT( ETABLISSEMENT_ID, DATE_CREATION, CREATEUR_ID, CONTENU) values (?, SYSDATE, ?, ?)";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, etablissement_id);
             stmt.setString(2, teleacteur_id);
             stmt.setString(3, contenu);
@@ -4462,7 +4469,7 @@ public class SQLDataService {
                     + "and m.id = ? order by 3 asc, 12 asc ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idBeneficiaire);
             stmt.setString(2, idMutuelle);
             rs = stmt.executeQuery();
@@ -4545,7 +4552,7 @@ public class SQLDataService {
             sb.append(requeteEvenements);
             sb.append(" ORDER BY 5 DESC ");
 
-            stmt = conn.prepareStatement(sb.toString());
+            stmt = prepareStatement(conn, sb.toString());
             stmt.setString(1, idAdherent);
             stmt.setString(2, idAdherent);
 
@@ -4638,7 +4645,7 @@ public class SQLDataService {
             sb.append(requeteEvenements);
             sb.append(" ORDER BY 5 DESC ");
 
-            stmt = conn.prepareStatement(sb.toString());
+            stmt = prepareStatement(conn, sb.toString());
             stmt.setString(1, idEtablissement);
             stmt.setString(2, idEtablissement);
 
@@ -4731,7 +4738,7 @@ public class SQLDataService {
 
             sb.append(" ORDER BY 5 DESC ");
 
-            stmt = conn.prepareStatement(sb.toString());
+            stmt = prepareStatement(conn, sb.toString());
             stmt.setString(1, idAppelant);
             stmt.setString(2, idAppelant);
             stmt.setString(3, idAppelant);
@@ -4819,7 +4826,7 @@ public class SQLDataService {
             // BIND VARIABLES
 
             // IDMUTUELLE n'est jamais null ou vide
-            stmt = conn.prepareStatement(requeteDatesDecomptes.toString());
+            stmt = prepareStatement(conn, requeteDatesDecomptes.toString());
 
             stmt.setString(1, idMutuelle);
 
@@ -4894,7 +4901,7 @@ public class SQLDataService {
 
             // BIND VARIABLES
             // IDMUTUELLE n'est jamais null ou vide
-            stmt = conn.prepareStatement(requeteDecomptes.toString());
+            stmt = prepareStatement(conn, requeteDecomptes.toString());
 
             stmt.setString(1, idMutuelle);
 
@@ -4964,7 +4971,7 @@ public class SQLDataService {
                     + "AND prest.acte_id = act.ID AND ben.ID = prest.beneficiaire_id "
                     + "AND ben.code = ? AND ben.mutuelle_id = ? order by code asc";
 
-            stmt = conn.prepareStatement(requeteCodesActes);
+            stmt = prepareStatement(conn, requeteCodesActes);
             stmt.setString(1, codeBeneficiaire);
             stmt.setString(2, idMutuelle);
 
@@ -5026,7 +5033,7 @@ public class SQLDataService {
                 requetePrestations.append(" AND act.CODE = ?");
             }
 
-            stmt = conn.prepareStatement(requetePrestations.toString());
+            stmt = prepareStatement(conn, requetePrestations.toString());
 
             stmt.setString(1, idDecompte);
 
@@ -5079,7 +5086,7 @@ public class SQLDataService {
                     + "r.CLE_IBAN, r.CODE_PAYS, r.IDENTIFIANT_NATIONAL_COMPTE, r.CODE_BIC "
                     + " FROM application.RIB r, application.codes c where r.ID = ? and r.CODEINTERBANCAIRE = c.CODE(+) ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idRib);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -5134,7 +5141,7 @@ public class SQLDataService {
                     + "FROM application.beneficiaire ben, application.codes pos_noe, application.codes reg "
                     + "where ben.id = ? and ben.POSNOEMIE_CODE = pos_noe.code(+) and ben.REGIME_CODE = reg.code(+)";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, beneficiaire_id);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -5190,7 +5197,7 @@ public class SQLDataService {
             requete.append("order by 1 asc ");
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete.toString());
+            stmt = prepareStatement(conn, requete.toString());
             stmt.setString(1, idBeneficiaire);
             stmt.setInt(2, statut);
             rs = stmt.executeQuery();
@@ -5240,7 +5247,7 @@ public class SQLDataService {
                 for (Iterator<ContratBeneficiaire> i = res.iterator(); i
                         .hasNext();) {
                     dcbtemp = (ContratBeneficiaire) i.next();
-                    stmt = conn.prepareStatement(requete.toString());
+                    stmt = prepareStatement(conn, requete.toString());
                     stmt.setString(1, dcbtemp.getIdMutuelle());
                     stmt.setString(2, dcbtemp.getCodeRT());
                     Blob blob = null;
@@ -5313,7 +5320,7 @@ public class SQLDataService {
             requete.append("order by 1 asc ");
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete.toString());
+            stmt = prepareStatement(conn, requete.toString());
             stmt.setString(1, idEtablissement);
             stmt.setInt(2, statut);
 
@@ -5360,10 +5367,10 @@ public class SQLDataService {
                 requete.delete(0, requete.length());
                 requete.append("SELECT g.id, g.LIBELLE_RT, g.DOCUMENT from application.garantie g where g.MUTUELLE_ID = ? and g.CODE_RT = ?");
                 ContratEtablissement dcetemp = null;
-                for (Iterator<ContratEtablissement> i = res.iterator(); i
-                        .hasNext();) {
+                stmt = prepareStatement(conn, requete.toString());
+                for (Iterator<ContratEtablissement> i = res.iterator(); i.hasNext();) {
+                	stmt.clearParameters();
                     dcetemp = (ContratEtablissement) i.next();
-                    stmt = conn.prepareStatement(requete.toString());
                     stmt.setString(1, dcetemp.getIdMutuelle());
                     stmt.setString(2, dcetemp.getCodeRT());
                     Blob blob = null;
@@ -5379,8 +5386,7 @@ public class SQLDataService {
                             dcetemp.setHasBlob(true);
                         }
                         blob = null;
-                    }
-                    stmt.close();
+                    }                    
                 }
             }
 
@@ -5438,7 +5444,7 @@ public class SQLDataService {
                     + "ORDER BY 1, 8, 7");
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete.toString());
+            stmt = prepareStatement(conn, requete.toString());
             stmt.setString(1, idContratBeneficiaire);
             stmt.setString(2, idContratBeneficiaire);
             rs = stmt.executeQuery();
@@ -5495,7 +5501,7 @@ public class SQLDataService {
                     + "ORDER BY 1, 8, 7, 9 DESC, 2";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idContratEtablissement);
             stmt.setString(2, idContratEtablissement);
             rs = stmt.executeQuery();
@@ -5550,7 +5556,7 @@ public class SQLDataService {
                     + " AND cbo.beneficiaire_id = ? AND cbo.risque_option_id = pla.PLA_RISQUE_OPTION_ID";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, contrat_adherent_id);
             stmt.setString(2, id_beneficiaire);
             stmt.setString(3, contrat_adherent_id);
@@ -5613,7 +5619,7 @@ public class SQLDataService {
 
             conn = getConnexion();
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, contrat_etablissement_id);
             stmt.setString(2, contrat_etablissement_id);
             stmt.setString(3, contrat_etablissement_id);
@@ -5673,7 +5679,7 @@ public class SQLDataService {
                     + "AND pla.PLA_RISQUE_OPTION_ID = ro.ID";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idVersion);
             stmt.setString(2, idVersion);
             stmt.setString(3, idVersion);
@@ -5717,7 +5723,7 @@ public class SQLDataService {
                     + "AND utl.UTL_PRS_ID = prs.PRS_ID "
                     + "ORDER BY plv.PLV_DATE_EFFET DESC, plv.PLV_DATE_FIN DESC ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idGarantie);
 
             rs = stmt.executeQuery();
@@ -5767,7 +5773,7 @@ public class SQLDataService {
                     + "AND utl.UTL_PRS_ID = prs.PRS_ID ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idVersion);
 
             rs = stmt.executeQuery();
@@ -5826,7 +5832,7 @@ public class SQLDataService {
                     + "AND contben.beneficiaire_id = ben.ID AND CGA.CONTRAT_ETABLISSEMENT_ID = ? ORDER BY 9 DESC, 2 ASC, 5 ASC, 3 ASC";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idContratEtablissement);
 
             rs = stmt.executeQuery();
@@ -5884,7 +5890,7 @@ public class SQLDataService {
             String requete = "INSERT INTO HOTLINE.APPEL(ID, DATEAPPEL, CREATEUR_ID, CAMPAGNE_ID, EDITIONENCOURS, EDITEUR_ID, CLOTURE_CODE ) "
                     + " VALUES (HOTLINE.SEQ_ID_APPEL.nextVal, SYSDATE, ?, ?, ?, ?, (select C.CODE from hotline.codes c where c.alias = 'OUVERTE') )";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, teleacteur_id);
             stmt.setString(2, campagne_id);
             stmt.setString(3, _VRAI);
@@ -5894,7 +5900,7 @@ public class SQLDataService {
             // Ramener la currVal
             String requete_id_appelant_cree = "SELECT HOTLINE.SEQ_ID_APPEL.currVal FROM DUAL";
             String id_appel_cree = "";
-            stmt = conn.prepareStatement(requete_id_appelant_cree);
+            stmt = prepareStatement(conn, requete_id_appelant_cree);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 id_appel_cree = rs.getString(1);
@@ -5904,7 +5910,7 @@ public class SQLDataService {
             // Ramener la sysdate
             String requete_date = "SELECT a.DATEAPPEL FROM HOTLINE.APPEL a WHERE a.id = ? ";
             Timestamp date_appel = null;
-            stmt = conn.prepareStatement(requete_date);
+            stmt = prepareStatement(conn, requete_date);
             stmt.setString(1, id_appel_cree);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -5998,7 +6004,7 @@ public class SQLDataService {
                     + " VALUES (HOTLINE.SEQ_ID_APPELANT.nextVal, ?, ?, ?, ?, to_date(?, 'DD/MM/YYYY'), ?, ?, "
                     + "?, ?, ?, " + "?, ?, ?, ?, ?, ?, ?, ?, ?, ? )";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setString(1, creation_type_appelant_id);
             stmt.setString(2, creation_appelant_code_civilite);
@@ -6029,7 +6035,7 @@ public class SQLDataService {
 
             String requete_id_appelant_creer = "SELECT HOTLINE.SEQ_ID_APPELANT.currVal FROM DUAL";
             String id_appelant_creer = "";
-            stmt = conn.prepareStatement(requete_id_appelant_creer);
+            stmt = prepareStatement(conn, requete_id_appelant_creer);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 id_appelant_creer = rs.getString(1);
@@ -6090,7 +6096,7 @@ public class SQLDataService {
                     + " VALUES (HOTLINE.SEQ_ID_APPELANT.nextVal, (SELECT c.CODE FROM HOTLINE.CODES c WHERE c.ALIAS = 'PROFSANTE' ), ?, ?, "
                     + "?, ?, ?, ?, ?, ?, ?, ? )";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setString(1, etablissement_raison_sociale);
             stmt.setString(2, etablissement_num_finess);
@@ -6110,7 +6116,7 @@ public class SQLDataService {
             // Ramener la currVal
             String requete_id_appelant_creer = "SELECT HOTLINE.SEQ_ID_APPELANT.currVal FROM DUAL";
             String id_appelant_creer = "";
-            stmt = conn.prepareStatement(requete_id_appelant_creer);
+            stmt = prepareStatement(conn, requete_id_appelant_creer);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 id_appelant_creer = rs.getString(1);
@@ -6198,7 +6204,7 @@ public class SQLDataService {
                     + "ADR_LIGNE_1 = ?, ADR_LIGNE_2 = ?, ADR_LIGNE_3 = ?, ADR_LIGNE_4 = ?, ADR_CODEPOSTAL = ?, ADR_LOCALITE = ? "
                     + "WHERE ID = ? ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setString(1, modification_type_appelant_id);
             stmt.setString(2, modification_appelant_code_civilite);
@@ -6284,7 +6290,7 @@ public class SQLDataService {
                     + "ADR_LIGNE_1 = ?, ADR_LIGNE_2 = ?, ADR_LIGNE_3 = ?, ADR_CODEPOSTAL = ?, ADR_LOCALITE = ? "
                     + "WHERE ID = ? ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setString(1, etablissement_raison_sociale);
             stmt.setString(2, etablissement_num_finess);
@@ -6339,7 +6345,7 @@ public class SQLDataService {
                     + "DATEDEBUT = to_date(?, 'DD/MM/YYYY'), DATEFIN = to_date(?, 'DD/MM/YYYY'), CAMPAGNE_ID = ?  "
                     + "WHERE ID = ? ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setString(1, titre);
             stmt.setString(2, contenu);
@@ -6366,8 +6372,7 @@ public class SQLDataService {
         }
     }
 
-    public static boolean modifierTransfert(String transfert_id,
-            String libelle, String email) {
+    public static boolean modifierTransfert(String transfert_id, String libelle, String email, String...idCampagnes) {
         Connection conn = null;
         PreparedStatement stmt = null;
 
@@ -6378,15 +6383,36 @@ public class SQLDataService {
             String requete = "UPDATE HOTLINE.T_TRANSFERTS_TRA t set t.TRA_LIBELLE = ?, t.TRA_EMAIL = ? "
                     + "WHERE t.TRA_ID = ?";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, libelle);
             stmt.setString(2, email);
             stmt.setString(3, transfert_id);
-
             stmt.executeQuery();
-            conn.commit();
+            closeStmtConn(stmt, null);
+            
+            requete = "DELETE FROM HOTLINE.T_TRANSFERTCAMPAGNE_TCA WHERE TCA_TRA_ID = ?";
+            stmt = prepareStatement(conn, requete);
+            stmt.setString(1, transfert_id);
+            stmt.executeQuery();
+            closeStmtConn(stmt, null);
+            
+			if (idCampagnes != null && idCampagnes.length > 0) {
 
+				requete = "INSERT INTO HOTLINE.T_TRANSFERTCAMPAGNE_TCA (TCA_TRA_ID, TCA_CAMPAGNE_ID) VALUES (?, ?) ";
+				stmt = prepareStatement(conn, requete);
+				for (String idCampagne : idCampagnes) {
+					if (StringUtils.isNotBlank(idCampagne)) {
+						stmt.setString(1, transfert_id);
+						stmt.setString(2, idCampagne);
+						stmt.executeQuery();
+					}
+				}
+				closeStmtConn(stmt, null);
+			}            
+            
+            conn.commit();
             return true;
+            
         } catch (Exception e) {
             LOGGER.error("modifierTransfert", e);
             try {
@@ -6425,7 +6451,7 @@ public class SQLDataService {
 
             String requete = "UPDATE HOTLINE.TELEACTEUR t SET t.IDHERMES = ?, t.ONGLETSFICHES= ?, t.EXCLU_MESSAGE_CONFIDENTIALITE = ? "
                     + "WHERE t.ID = ? ";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, IDHermes);
             stmt.setString(2, onglets_fiches);
             stmt.setString(3, excluTransfertsPossibles);
@@ -6435,7 +6461,7 @@ public class SQLDataService {
             stmt.clearParameters();
             requete = "SELECT count(*) from HOTLINE.T_HCONTACTS_HABILITATIONS_HCH hch "
                     + "WHERE hch.HCH_UTL_ID = ? ";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, utl_id);
 
             rs = stmt.executeQuery();
@@ -6445,14 +6471,14 @@ public class SQLDataService {
                 if (count > 0) {
                     requete = "UPDATE HOTLINE.T_HCONTACTS_HABILITATIONS_HCH hch  SET hch.HCH_ADMINISTRATION = ?, hch.HCH_STATISTIQUES = ? "
                             + "WHERE hch.HCH_UTL_ID = ?";
-                    stmt = conn.prepareStatement(requete);
+                    stmt = prepareStatement(conn, requete);
                     stmt.setString(1, moduleAdministration);
                     stmt.setString(2, moduleStatistiques);
                     stmt.setString(3, utl_id);
                 } else {
                     requete = "INSERT INTO HOTLINE.T_HCONTACTS_HABILITATIONS_HCH (HCH_UTL_ID, HCH_ADMINISTRATION, HCH_STATISTIQUES) "
                             + "VALUES (?, ?, ?)";
-                    stmt = conn.prepareStatement(requete);
+                    stmt = prepareStatement(conn, requete);
                     stmt.setString(1, utl_id);
                     stmt.setString(2, moduleAdministration);
                     stmt.setString(3, moduleStatistiques);
@@ -6492,7 +6518,7 @@ public class SQLDataService {
                     + "app.ADR_TELEPHONEFIXE, app.ADR_TELEPHONEAUTRE, app.ADR_TELECOPIE, app.ADR_COURRIEL, app.ADR_LIGNE_1, app.ADR_LIGNE_2, app.ADR_LIGNE_3, app.ADR_LIGNE_4, app.ADR_CODEPOSTAL, app.ADR_LOCALITE "
                     + "FROM HOTLINE.APPELANT app, HOTLINE.CODES civ "
                     + "WHERE app.ID = ? AND APP.CIVILITE_CODE = civ.CODE(+)";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, id_appelant);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -6585,7 +6611,7 @@ public class SQLDataService {
             String requete = "SELECT c.ID, m.titre, m.contenu, m.datedebut, m.datefin, m.campagne_id "
                     + "FROM hotline.MESSAGE m, hotline.campagne c where c.id = m.CAMPAGNE_ID and m.ID = ?";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, id_message);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -6635,7 +6661,7 @@ public class SQLDataService {
                                        "where A.SAB_SRV_ID = S.SRV_ID " +
                                        "     and A.SAB_BENEF_ID = ?";
             
-            stmt = conn.prepareStatement(requeteAbonnements);
+            stmt = prepareStatement(conn, requeteAbonnements);
             stmt.setString(1 , idAdherent);
            
             rs = stmt.executeQuery();
@@ -6676,7 +6702,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.APPELANT app, HOTLINE.CODES civ, HOTLINE.CODES typ "
                     + "WHERE app.ID = ? and app.type_code = typ.CODE(+) and app.civilite_code = civ.code(+)";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idAppelant);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -6759,7 +6785,7 @@ public class SQLDataService {
             conn.setAutoCommit(false);
 
             String requete = "SELECT COUNT(*) FROM H_ANNUAIRE.T_UTILISATEURS_UTL utl WHERE utl.UTL_ID = ? and utl.UTL_PASSWORD = ?";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, utl_id);
             stmt.setString(2, mot_de_passe_actuel);
 
@@ -6773,7 +6799,7 @@ public class SQLDataService {
             } else {
                 // J'essaie de changer le mot de passe
                 requete = "UPDATE H_ANNUAIRE.T_UTILISATEURS_UTL utl set utl.UTL_PASSWORD = ? WHERE utl.UTL_ID = ?";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setString(1, nouveau_mot_de_passe);
                 stmt.setString(2, utl_id);
                 rs = stmt.executeQuery();
@@ -6808,7 +6834,7 @@ public class SQLDataService {
             String requete = "UPDATE HOTLINE.APPEL a "
                     + "set a.CLOTURE_CODE = (select c.CODE from HOTLINE.CODES c WHERE c.ALIAS = 'ACQUITTEMENT'),  a.SOUS_STATUT = ?, a.DATEMODIFICATION = SYSDATE, a.MODIFICATEUR_ID = ? "
                     + "WHERE a.ID = ?";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, sous_statut_id);
             stmt.setString(2, teleacteur_id);
             stmt.setString(3, appel_id);
@@ -6843,7 +6869,7 @@ public class SQLDataService {
             String requete = "UPDATE HOTLINE.APPEL a "
                     + "set a.COMMENTAIRE = ?,  a.DATEMODIFICATION = SYSDATE, a.MODIFICATEUR_ID = ? "
                     + "WHERE a.ID = ? ";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, commentaires);
             stmt.setString(2, teleacteur_id);
             stmt.setString(3, appel_id);
@@ -6879,7 +6905,7 @@ public class SQLDataService {
                     + "set a.COMMENTAIRE = ?, a.CLOTURE_CODE = (select clo_cod.CODE FROM HOTLINE.CODES clo_cod WHERE clo_cod.ALIAS = 'CLOTURE'),"
                     + "a.DATEMODIFICATION = SYSDATE, a.DATECLOTURE = SYSDATE, a.CLOTUREUR_ID = ?, a.MODIFICATEUR_ID = ? "
                     + "WHERE a.ID = ? ";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, commentaires);
             stmt.setString(2, teleacteur_id);
             stmt.setString(3, teleacteur_id);
@@ -6932,7 +6958,7 @@ public class SQLDataService {
                         + "AND a.SOUS_STATUT = ss.ID(+) " + "AND a.ID = ? ";
             }
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idAppel);
             rs = stmt.executeQuery();
 
@@ -6991,7 +7017,7 @@ public class SQLDataService {
             } else {
                 requete = "UPDATE H_ANNUAIRE.T_PERSONNES_PRS prs SET prs.PRS_ACTIF = 1 WHERE prs.PRS_ID = (SELECT p.PRS_ID FROM H_ANNUAIRE.T_PERSONNES_PRS p, H_ANNUAIRE.T_UTILISATEURS_UTL utl WHERE utl.UTL_PRS_ID = p.PRS_ID AND utl.UTL_ID = ?)";
             }
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, utl_id);
             stmt.executeQuery();
             conn.commit();
@@ -7027,7 +7053,7 @@ public class SQLDataService {
                     + "cod_satisfaction.LIBELLE, cod_statut.LIBELLE, cod_periode_rappel.LIBELLE, "
                     + "c.LIBELLE, mut.LIBELLE, eg.LIBELLE, moa.LIBELLE, smoa.LIBELLE, p.LIBELLE, sp.LIBELLE, "
                     + "code_appelant.LIBELLE, code_appelant.ALIAS, cod_statut.ALIAS,  a.CREATEUR_ID, cod_satisfaction.ALIAS, "
-                    + "sous_statut.LIBELLE, a.NOMDOCUMENTGENERE, a.MODELE_EDITION_ID, a.TRANSFERTS, a.RESOLU "
+                    + "sous_statut.LIBELLE, a.NOMDOCUMENTGENERE, a.MODELE_EDITION_ID, a.TRANSFERTS, a.RESOLU, a.APPELANT_BENEFICIAIRE_ID "
                     + "FROM HOTLINE.APPEL a, HOTLINE.CODES cod_satisfaction, HOTLINE.CODES code_appelant,  HOTLINE.CODES cod_statut, HOTLINE.CODES cod_periode_rappel,  "
                     + "HOTLINE.CAMPAGNE c, APPLICATION.MUTUELLE mut, APPLICATION.ENTITE_GESTION eg, HOTLINE.MOTIFAPPEL moa, HOTLINE.SMOTIFAPPEL smoa,  "
                     + "HOTLINE.POINT p, HOTLINE.SPOINT sp, EVENEMENT.SOUS_STATUT sous_statut  "
@@ -7039,126 +7065,74 @@ public class SQLDataService {
                     + "AND a.SOUS_STATUT = sous_statut.ID(+) AND a.ID = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idAppel);
             rs = stmt.executeQuery();
-            while (rs.next()) {
-                unDisplay = new Appel();
+			while (rs.next()) {
+				unDisplay = new Appel();
 
-                unDisplay.setID(rs.getString(1));
-                unDisplay.setMODIFICATEUR_ID((rs.getString(2) != null) ? rs
-                        .getString(2) : "");
-                unDisplay.setCAMPAGNE_ID((rs.getString(3) != null) ? rs
-                        .getString(3) : "");
-                unDisplay.setMUTUELLE_ID((rs.getString(4) != null) ? rs
-                        .getString(4) : "");
-                unDisplay.setDATEAPPEL((rs.getTimestamp(5) != null) ? rs
-                        .getTimestamp(5) : null);
-                unDisplay.setDATECLOTURE((rs.getTimestamp(6) != null) ? rs
-                        .getTimestamp(6) : null);
+				unDisplay.setID(rs.getString(1));
+				unDisplay.setMODIFICATEUR_ID((rs.getString(2) != null) ? rs.getString(2) : "");
+				unDisplay.setCAMPAGNE_ID((rs.getString(3) != null) ? rs.getString(3) : "");
+				unDisplay.setMUTUELLE_ID((rs.getString(4) != null) ? rs.getString(4) : "");
+				unDisplay.setDATEAPPEL((rs.getTimestamp(5) != null) ? rs.getTimestamp(5) : null);
+				unDisplay.setDATECLOTURE((rs.getTimestamp(6) != null) ? rs.getTimestamp(6) : null);
 
-                unDisplay.setMOTIF_ID((rs.getString(7) != null) ? rs
-                        .getString(7) : "");
-                unDisplay.setS_MOTIF_ID((rs.getString(8) != null) ? rs
-                        .getString(8) : "");
-                unDisplay.setPOINT_ID((rs.getString(9) != null) ? rs
-                        .getString(9) : "");
-                unDisplay.setS_POINT_ID((rs.getString(10) != null) ? rs
-                        .getString(10) : "");
-                unDisplay.setREGIME_CODE((rs.getString(11) != null) ? rs
-                        .getString(11) : "");
-                unDisplay.setTRAITEMENTURGENT((rs.getString(12) != null) ? rs
-                        .getString(12) : "");
-                unDisplay.setRECLAMATION((rs.getString(13) != null) ? rs
-                        .getString(13) : "");
-                unDisplay.setCOMMENTAIRE((rs.getString(14) != null) ? rs
-                        .getString(14) : "");
+				unDisplay.setMOTIF_ID((rs.getString(7) != null) ? rs.getString(7) : "");
+				unDisplay.setS_MOTIF_ID((rs.getString(8) != null) ? rs.getString(8) : "");
+				unDisplay.setPOINT_ID((rs.getString(9) != null) ? rs.getString(9) : "");
+				unDisplay.setS_POINT_ID((rs.getString(10) != null) ? rs.getString(10) : "");
+				unDisplay.setREGIME_CODE((rs.getString(11) != null) ? rs.getString(11) : "");
+				unDisplay.setTRAITEMENTURGENT((rs.getString(12) != null) ? rs.getString(12) : "");
+				unDisplay.setRECLAMATION((rs.getString(13) != null) ? rs.getString(13) : "");
+				unDisplay.setCOMMENTAIRE((rs.getString(14) != null) ? rs.getString(14) : "");
 
-                unDisplay.setSATISFACTION_CODE((rs.getString(15) != null) ? rs
-                        .getString(15) : "");
-                unDisplay.setCLOTURE_CODE((rs.getString(16) != null) ? rs
-                        .getString(16) : "");
-                unDisplay.setNUMERORAPPEL((rs.getString(17) != null) ? rs
-                        .getString(17) : "");
-                unDisplay.setDATERAPPEL((rs.getTimestamp(18) != null) ? rs
-                        .getTimestamp(18) : null);
-                unDisplay.setPERIODERAPPEL_CODE((rs.getString(19) != null) ? rs
-                        .getString(19) : "");
-                unDisplay
-                        .setCODEAPPELANT_SELECTIONNE((rs.getString(20) != null) ? rs
-                                .getString(20) : "");
+				unDisplay.setSATISFACTION_CODE((rs.getString(15) != null) ? rs.getString(15) : "");
+				unDisplay.setCLOTURE_CODE((rs.getString(16) != null) ? rs.getString(16) : "");
+				unDisplay.setNUMERORAPPEL((rs.getString(17) != null) ? rs.getString(17) : "");
+				unDisplay.setDATERAPPEL((rs.getTimestamp(18) != null) ? rs.getTimestamp(18) : null);
+				unDisplay.setPERIODERAPPEL_CODE((rs.getString(19) != null) ? rs.getString(19) : "");
+				unDisplay.setCODEAPPELANT_SELECTIONNE((rs.getString(20) != null) ? rs.getString(20) : "");
 
-                unDisplay.setBENEFICIAIRE_ID((rs.getString(21) != null) ? rs
-                        .getString(21) : "");
-                unDisplay.setADHERENT_ID((rs.getString(22) != null) ? rs
-                        .getString(22) : null);
-                unDisplay.setETABLISSEMENT_ID((rs.getString(23) != null) ? rs
-                        .getString(23) : null);
-                unDisplay.setAPPELANT_ID((rs.getString(24) != null) ? rs
-                        .getString(24) : null);
-                unDisplay.setENTITEGESTION_ID((rs.getString(25) != null) ? rs
-                        .getString(25) : null);
-                unDisplay.setEDITIONENCOURS((rs.getString(26) != null) ? rs
-                        .getString(26) : null);
+				unDisplay.setBENEFICIAIRE_ID((rs.getString(21) != null) ? rs.getString(21) : "");
+				unDisplay.setADHERENT_ID((rs.getString(22) != null) ? rs.getString(22) : null);
+				unDisplay.setETABLISSEMENT_ID((rs.getString(23) != null) ? rs.getString(23) : null);
+				unDisplay.setAPPELANT_ID((rs.getString(24) != null) ? rs.getString(24) : null);
+				unDisplay.setENTITEGESTION_ID((rs.getString(25) != null) ? rs.getString(25) : null);
+				unDisplay.setEDITIONENCOURS((rs.getString(26) != null) ? rs.getString(26) : null);
 
-                unDisplay.setEDITEUR_ID((rs.getString(27) != null) ? rs
-                        .getString(27) : "");
-                unDisplay.setDATEEDITION((rs.getTimestamp(28) != null) ? rs
-                        .getTimestamp(28) : null);
-                unDisplay.setCLOTUREUR_ID((rs.getString(29) != null) ? rs
-                        .getString(29) : null);
-                unDisplay
-                        .setDATEMODIFICATION((rs.getTimestamp(30) != null) ? rs
-                                .getTimestamp(30) : null);
-                unDisplay.setPRIORITE((rs.getString(31) != null) ? rs
-                        .getString(31) : null);
-                unDisplay.setSOUS_STATUT((rs.getString(32) != null) ? rs
-                        .getString(32) : null);
+				unDisplay.setEDITEUR_ID((rs.getString(27) != null) ? rs.getString(27) : "");
+				unDisplay.setDATEEDITION((rs.getTimestamp(28) != null) ? rs.getTimestamp(28) : null);
+				unDisplay.setCLOTUREUR_ID((rs.getString(29) != null) ? rs.getString(29) : null);
+				unDisplay.setDATEMODIFICATION((rs.getTimestamp(30) != null) ? rs.getTimestamp(30) : null);
+				unDisplay.setPRIORITE((rs.getString(31) != null) ? rs.getString(31) : null);
+				unDisplay.setSOUS_STATUT((rs.getString(32) != null) ? rs.getString(32) : null);
 
-                unDisplay.setSatisfaction((rs.getString(33) != null) ? rs
-                        .getString(33) : "");
-                unDisplay.setStatut((rs.getString(34) != null) ? rs
-                        .getString(34) : "");
-                unDisplay.setPeriodeRappel((rs.getString(35) != null) ? rs
-                        .getString(35) : "");
+				unDisplay.setSatisfaction((rs.getString(33) != null) ? rs.getString(33) : "");
+				unDisplay.setStatut((rs.getString(34) != null) ? rs.getString(34) : "");
+				unDisplay.setPeriodeRappel((rs.getString(35) != null) ? rs.getString(35) : "");
 
-                unDisplay.setCampagne((rs.getString(36) != null) ? rs
-                        .getString(36) : "");
-                unDisplay.setMutuelle((rs.getString(37) != null) ? rs
-                        .getString(37) : "");
-                unDisplay.setEntiteGestion((rs.getString(38) != null) ? rs
-                        .getString(38) : "");
-                unDisplay.setMotif((rs.getString(39) != null) ? rs
-                        .getString(39) : "");
-                unDisplay.setSousMotif((rs.getString(40) != null) ? rs
-                        .getString(40) : "");
-                unDisplay.setPoint((rs.getString(41) != null) ? rs
-                        .getString(41) : "");
-                unDisplay.setSousPoint((rs.getString(42) != null) ? rs
-                        .getString(42) : "");
+				unDisplay.setCampagne((rs.getString(36) != null) ? rs.getString(36) : "");
+				unDisplay.setMutuelle((rs.getString(37) != null) ? rs.getString(37) : "");
+				unDisplay.setEntiteGestion((rs.getString(38) != null) ? rs.getString(38) : "");
+				unDisplay.setMotif((rs.getString(39) != null) ? rs.getString(39) : "");
+				unDisplay.setSousMotif((rs.getString(40) != null) ? rs.getString(40) : "");
+				unDisplay.setPoint((rs.getString(41) != null) ? rs.getString(41) : "");
+				unDisplay.setSousPoint((rs.getString(42) != null) ? rs.getString(42) : "");
 
-                unDisplay.setTypeAppelant((rs.getString(43) != null) ? rs
-                        .getString(43) : "");
-                unDisplay.setAliasTypeAppelant((rs.getString(44) != null) ? rs
-                        .getString(44) : "");
-                unDisplay.setAliasStatut((rs.getString(45) != null) ? rs
-                        .getString(45) : "");
-                unDisplay.setCREATEUR_ID((rs.getString(46) != null) ? rs
-                        .getString(46) : "");
-                unDisplay.setAliasSatisfaction((rs.getString(47) != null) ? rs
-                        .getString(47) : "");
-                unDisplay.setLibelleSousStatut((rs.getString(48) != null) ? rs
-                        .getString(48) : "");
-                unDisplay.setNOMDOCUMENTGENERE((rs.getString(49) != null) ? rs
-                        .getString(49) : "");
-                unDisplay.setMODELE_EDITION_ID((rs.getString(50) != null) ? rs
-                        .getString(50) : "");
-                unDisplay.setTRANSFERTS((rs.getString(51) != null) ? rs
-                        .getString(51) : "");
-                unDisplay.setResolu((rs.getString(52) != null) ? rs
-                        .getString(51) : "");
+				unDisplay.setTypeAppelant((rs.getString(43) != null) ? rs.getString(43) : "");
+				unDisplay.setAliasTypeAppelant((rs.getString(44) != null) ? rs.getString(44) : "");
+				unDisplay.setAliasStatut((rs.getString(45) != null) ? rs.getString(45) : "");
+				unDisplay.setCREATEUR_ID((rs.getString(46) != null) ? rs.getString(46) : "");
+				unDisplay.setAliasSatisfaction((rs.getString(47) != null) ? rs.getString(47) : "");
+				unDisplay.setLibelleSousStatut((rs.getString(48) != null) ? rs.getString(48) : "");
+				unDisplay.setNOMDOCUMENTGENERE((rs.getString(49) != null) ? rs.getString(49) : "");
+				unDisplay.setMODELE_EDITION_ID((rs.getString(50) != null) ? rs.getString(50) : "");
+				unDisplay.setTRANSFERTS((rs.getString(51) != null) ? rs.getString(51) : "");
+				unDisplay.setResolu((rs.getString(52) != null) ? rs.getString(52) : "");
+				unDisplay.setBENEF_APPELANT_ID((rs.getString(53) != null) ? rs.getString(53) : "");
 
-            }
+			}
             stmt.clearParameters();
             return unDisplay;
         } catch (Exception e) {
@@ -7169,699 +7143,153 @@ public class SQLDataService {
         }
     }
 
-    public static Collection rechercheFichesAppels(Map<String, String> map) {
-
-        // HABILITATIONS :
-        // ASSURES ET ENTREPRISES : sur les EG
-        // AUTRES APPELANTS : sur les mutuelles
-
-        Connection conn = null;
-        PreparedStatement stmt = null, stmt_count = null;
-        ResultSet rs = null;
-        Collection res = new ArrayList();
-        Appel unDisplay = null;
-
-        String comparateur_fiche_id = " = ";
-        String comparateur_mot_cle = " = ";
-        String comparateur_motif = " = ";
-        String comparateur_sous_motif = " = ";
-        String comparateur_point = " = ";
-        String comparateur_sous_point = " = ";
-
-        String fiche_id = (String) map.get("fiche_id");
-        String mot_cle = (String) map.get("mot_cle");
-        String reference_id = (String) map.get("reference_id");
-        String campagne_id = (String) map.get("campagne_id");
-        String type_appelant = (String) map.get("type_appelant");
-        String createur_id = (String) map.get("createur_id");
-        String statut_id = (String) map.get("statut_id");
-        String reclamation = (String) map.get("reclamation");
-        String satisfaction_id = (String) map.get("satisfaction_id");
-        String date_debut = (String) map.get("date_debut");
-        String date_fin = (String) map.get("date_fin");
-        String motif = (String) map.get("motif");
-        String sous_motif = (String) map.get("sous_motif");
-        String point = (String) map.get("point");
-        String sous_point = (String) map.get("sous_point");
-        String teleacteur_id = (String) map.get("teleacteur_id");
-
-        String filtre_campagne = " and a.CAMPAGNE_ID = ?  ";
-        String filtre_reference = " and smoa.REFERENCE_ID = ? ";
-        String filtre_createur = " and a.CREATEUR_ID = ? ";
-        String filtre_satisfaction = " and a.SATISFACTION_CODE = ? ";
-        String filtre_statut = " and cod_cloture.CODE = ? ";
-        String filtre_type_appelant = " and a.CODEAPPELANT_SELECTIONNE = ? ";
-        String filtre_date_debut = " and trunc(a.DATEAPPEL) >= to_date(?,'dd/mm/YYYY')  ";
-        String filtre_date_fin = " and trunc(a.DATEAPPEL) <= to_date(?,'dd/mm/YYYY') ";
-        String filtre_reclamation = " and a.RECLAMATION = ? ";
-
-        int compteur_bind = 1;
-        try {
-            conn = getConnexion();
-
-            if (fiche_id.indexOf('%') != -1) {
-                comparateur_fiche_id = " like ";
-            }
-
-            if (mot_cle.indexOf('%') != -1) {
-                comparateur_mot_cle = " like ";
-            }
-
-            if (motif.indexOf('%') != -1) {
-                comparateur_motif = " like ";
-            }
-
-            if (sous_motif.indexOf('%') != -1) {
-                comparateur_sous_motif = " like ";
-            }
-
-            if (point.indexOf('%') != -1) {
-                comparateur_point = " like ";
-            }
-
-            if (sous_point.indexOf('%') != -1) {
-                comparateur_sous_point = " like ";
-            }
-
-            StringBuilder requete_globale = new StringBuilder("");
-
-            /* ASSURE : HABILITATIONS SUR EG */
-            requete_globale
-                    .append("select a.DATEAPPEL, t.NOM || ' ' || t.PRENOM as CREATEUR, a.ID, 'I' AS pole, "
-                            + "mut.LIBELLE as MUTUELLE, "
-                            + "eg.LIBELLE as EG,  moa.LIBELLE as motif, smoa.LIBELLE as sous_motif, "
-                            + "p.LIBELLE as point, sp.LIBELLE as sous_point, 'Assuré', ben.CODE as CODE, cod_cloture.LIBELLE, a.commentaire as commentaire "
-                            + "FROM hotline.APPEL a, HOTLINE.TELEACTEUR t, HOTLINE.CAMPAGNE c, APPLICATION.MUTUELLE mut, APPLICATION.ENTITE_GESTION eg, "
-                            + "HOTLINE.MOTIFAPPEL moa, HOTLINE.SMOTIFAPPEL smoa, HOTLINE.POINT p, HOTLINE.SPOINT sp, "
-                            + "HOTLINE.CODES cod_cloture, APPLICATION.BENEFICIAIRE ben,  application.personne pers, HOTLINE.CODES cod_type_appelant, hotline.teleacteurentitegestion teg "
-                            + "WHERE a.CREATEUR_ID = t.ID	AND a.CODEAPPELANT_SELECTIONNE = cod_type_appelant.CODE	AND cod_type_appelant.ALIAS = 'ASSURE' "
-                            + "AND a.CAMPAGNE_ID = c.ID AND a.MUTUELLE_ID = mut.ID AND a.ENTITEGESTION_ID = eg.ID(+) AND a.BENEFICIAIRE_ID = ben.ID(+) "
-                            + "AND ben.PERSONNE_ID = pers.ID(+) "
-                            + "AND a.MOTIF_ID = moa.ID(+)	AND a.S_MOTIF_ID = smoa.ID(+) AND a.POINT_ID = p.ID(+) AND a.S_POINT_ID = sp.ID(+) "
-                            + "AND teg.ENTITEGESTION_ID = a.ENTITEGESTION_ID AND teg.TELEACTEUR_ID = ? "
-                            + "AND a.CLOTURE_CODE = cod_cloture.CODE ");
-
-            // CHAMPS DE RECHERCHE
-            if (!"".equals(fiche_id)) {
-                requete_globale.append(" AND a.ID " + comparateur_fiche_id
-                        + " ?  ");
-            }
-
-            if (!"".equals(mot_cle)) {
-                requete_globale.append(" AND upper(a.COMMENTAIRE) "
-                        + comparateur_mot_cle + " upper(?) ");
-            }
-
-            if (!"".equals(motif)) {
-                requete_globale.append(" AND upper(moa.LIBELLE)"
-                        + comparateur_motif + " upper(?) ");
-            }
-            if (!"".equals(sous_motif)) {
-                requete_globale.append(" AND upper(smoa.LIBELLE)"
-                        + comparateur_sous_motif + " upper(?) ");
-            }
-            if (!"".equals(point)) {
-                requete_globale.append(" AND upper(p.LIBELLE)"
-                        + comparateur_point + " upper(?) ");
-            }
-            if (!"".equals(sous_point)) {
-                requete_globale.append(" AND upper(sp.LIBELLE)"
-                        + comparateur_sous_point + " upper(?) ");
-            }
-
-            // FILTRES
-            if (!"".equals(campagne_id)) {
-                requete_globale.append(filtre_campagne);
-            }
-
-            if (!"".equals(reference_id)) {
-                requete_globale.append(filtre_reference);
-            }
-
-            if (!"".equals(type_appelant)) {
-                requete_globale.append(filtre_type_appelant);
-            }
-            if (!"".equals(createur_id)) {
-                requete_globale.append(filtre_createur);
-            }
-            if (!"".equals(statut_id)) {
-                requete_globale.append(filtre_statut);
-            }
-            if (!"".equals(reclamation)) {
-                requete_globale.append(filtre_reclamation);
-            }
-            if (!"".equals(satisfaction_id)) {
-                requete_globale.append(filtre_satisfaction);
-            }
-            if (!"".equals(date_debut)) {
-                requete_globale.append(filtre_date_debut);
-            }
-            if (!"".equals(date_fin)) {
-                requete_globale.append(filtre_date_fin);
-            }
-
-            requete_globale.append(" UNION  ");
-
-            /* ENTREPRISE : HABILITATIONS SUR EG */
-            requete_globale
-                    .append("select a.DATEAPPEL, t.NOM || ' ' || t.PRENOM as CREATEUR, a.ID, 'C' AS pole,  "
-                            + "mut.LIBELLE as MUTUELLE, "
-                            + "eg.LIBELLE as EG,  moa.LIBELLE as motif, smoa.LIBELLE as sous_motif, "
-                            + "p.LIBELLE as point, sp.LIBELLE as sous_point, 'Entreprise', etab.CODE as CODE, cod_cloture.LIBELLE, a.commentaire as commentaire "
-                            + "FROM hotline.APPEL a, HOTLINE.TELEACTEUR t, HOTLINE.CAMPAGNE c, APPLICATION.MUTUELLE mut, APPLICATION.ENTITE_GESTION eg, "
-                            + "HOTLINE.MOTIFAPPEL moa, HOTLINE.SMOTIFAPPEL smoa, HOTLINE.POINT p, HOTLINE.SPOINT sp, "
-                            + "HOTLINE.CODES cod_cloture, APPLICATION.ETABLISSEMENT etab, HOTLINE.CODES cod_type_appelant, hotline.teleacteurentitegestion teg "
-                            + "WHERE a.CREATEUR_ID = t.ID	AND a.CODEAPPELANT_SELECTIONNE = cod_type_appelant.CODE AND cod_type_appelant.ALIAS = 'ENTREPRISE'	"
-                            + "AND a.CAMPAGNE_ID = c.ID AND a.MUTUELLE_ID = mut.ID AND a.ENTITEGESTION_ID = eg.ID(+) AND a.ETABLISSEMENT_ID = etab.ID(+) "
-                            + "AND a.MOTIF_ID = moa.ID(+)	AND a.S_MOTIF_ID = smoa.ID(+) AND a.POINT_ID = p.ID(+) AND a.S_POINT_ID = sp.ID(+) "
-                            + "AND teg.ENTITEGESTION_ID = a.ENTITEGESTION_ID AND teg.TELEACTEUR_ID = ? "
-                            + "AND a.CLOTURE_CODE = cod_cloture.CODE	");
-
-            // CHAMPS DE RECHERCHE
-            if (!"".equals(fiche_id)) {
-                requete_globale.append(" AND a.ID " + comparateur_fiche_id
-                        + " ?  ");
-            }
-
-            if (!"".equals(mot_cle)) {
-                requete_globale.append(" AND upper(a.COMMENTAIRE) "
-                        + comparateur_mot_cle + " upper(?) ");
-            }
-
-            if (!"".equals(motif)) {
-                requete_globale.append(" AND upper(moa.LIBELLE)"
-                        + comparateur_motif + " upper(?) ");
-            }
-            if (!"".equals(sous_motif)) {
-                requete_globale.append(" AND upper(smoa.LIBELLE)"
-                        + comparateur_sous_motif + " upper(?) ");
-            }
-            if (!"".equals(point)) {
-                requete_globale.append(" AND upper(p.LIBELLE)"
-                        + comparateur_point + " upper(?) ");
-            }
-            if (!"".equals(sous_point)) {
-                requete_globale.append(" AND upper(sp.LIBELLE)"
-                        + comparateur_sous_point + " upper(?) ");
-            }
-
-            // FILTRES
-            if (!"".equals(campagne_id)) {
-                requete_globale.append(filtre_campagne);
-            }
-
-            if (!"".equals(reference_id)) {
-                requete_globale.append(filtre_reference);
-            }
-
-            if (!"".equals(type_appelant)) {
-                requete_globale.append(filtre_type_appelant);
-            }
-            if (!"".equals(createur_id)) {
-                requete_globale.append(filtre_createur);
-            }
-            if (!"".equals(statut_id)) {
-                requete_globale.append(filtre_statut);
-            }
-            if (!"".equals(reclamation)) {
-                requete_globale.append(filtre_reclamation);
-            }
-            if (!"".equals(satisfaction_id)) {
-                requete_globale.append(filtre_satisfaction);
-            }
-            if (!"".equals(date_debut)) {
-                requete_globale.append(filtre_date_debut);
-            }
-            if (!"".equals(date_fin)) {
-                requete_globale.append(filtre_date_fin);
-            }
-
-            requete_globale.append(" UNION  ");
-
-            /* APPELANT : HABILITATION SUR LA MUTUELLE */
-            requete_globale
-                    .append("select a.DATEAPPEL, t.NOM || ' ' || t.PRENOM as CREATEUR, a.ID, '' AS pole, "
-                            + "mut.LIBELLE as MUTUELLE, "
-                            + "null as EG, moa.LIBELLE as motif, smoa.LIBELLE as sous_motif, "
-                            + "p.LIBELLE as point, sp.LIBELLE as sous_point,  cod_type_appelant.LIBELLE as Type_appelant, null as CODE, cod_cloture.LIBELLE, a.commentaire as commentaire "
-                            + "FROM hotline.APPEL a, HOTLINE.TELEACTEUR t, HOTLINE.CAMPAGNE c, APPLICATION.MUTUELLE mut, "
-                            + "HOTLINE.MOTIFAPPEL moa, HOTLINE.SMOTIFAPPEL smoa, HOTLINE.POINT p, HOTLINE.SPOINT sp, "
-                            + "HOTLINE.CODES cod_cloture, HOTLINE.APPELANT app, HOTLINE.CODES cod_type_appelant, HOTLINE.TELEACTEURCAMPAGNE tc, hotline.CAMPMUT cm "
-                            + "WHERE a.CREATEUR_ID = t.ID AND a.CODEAPPELANT_SELECTIONNE IS NOT NULL AND a.CODEAPPELANT_SELECTIONNE = cod_type_appelant.CODE(+) "
-                            + "AND a.CAMPAGNE_ID = c.ID AND a.MUTUELLE_ID = mut.ID  "
-                            + "AND a.APPELANT_ID = app.ID(+) "
-                            + "AND a.MOTIF_ID = moa.ID(+) AND a.S_MOTIF_ID = smoa.ID(+) AND a.POINT_ID = p.ID(+) AND a.S_POINT_ID = sp.ID(+) "
-                            + "AND (cod_type_appelant.CODE IS NULL OR cod_type_appelant.ALIAS NOT IN ('ASSURE', 'ENTREPRISE')) "
-                            + "AND tc.CAMPAGNE_ID = cm.CAMPAGNE_ID AND cm.MUTUELLE_ID = a.MUTUELLE_ID AND tc.TELEACTEUR_ID = ? "
-                            + "AND a.CLOTURE_CODE = cod_cloture.CODE ");
-
-            // CHAMPS DE RECHERCHE
-            if (!"".equals(fiche_id)) {
-                requete_globale.append(" AND a.ID " + comparateur_fiche_id
-                        + " ?  ");
-            }
-
-            if (!"".equals(mot_cle)) {
-                requete_globale.append(" AND upper(a.COMMENTAIRE) "
-                        + comparateur_mot_cle + " upper(?) ");
-            }
-
-            if (!"".equals(motif)) {
-                requete_globale.append(" AND upper(moa.LIBELLE)"
-                        + comparateur_motif + " upper(?) ");
-            }
-            if (!"".equals(sous_motif)) {
-                requete_globale.append(" AND upper(smoa.LIBELLE)"
-                        + comparateur_sous_motif + " upper(?) ");
-            }
-            if (!"".equals(point)) {
-                requete_globale.append(" AND upper(p.LIBELLE)"
-                        + comparateur_point + " upper(?) ");
-            }
-            if (!"".equals(sous_point)) {
-                requete_globale.append(" AND upper(sp.LIBELLE)"
-                        + comparateur_sous_point + " upper(?) ");
-            }
-
-            // FILTRES
-            if (!"".equals(campagne_id)) {
-                requete_globale.append(filtre_campagne);
-            }
-
-            if (!"".equals(reference_id)) {
-                requete_globale.append(filtre_reference);
-            }
-
-            if (!"".equals(type_appelant)) {
-                requete_globale.append(filtre_type_appelant);
-            }
-            if (!"".equals(createur_id)) {
-                requete_globale.append(filtre_createur);
-            }
-            if (!"".equals(statut_id)) {
-                requete_globale.append(filtre_statut);
-            }
-            if (!"".equals(reclamation)) {
-                requete_globale.append(filtre_reclamation);
-            }
-            if (!"".equals(satisfaction_id)) {
-                requete_globale.append(filtre_satisfaction);
-            }
-            if (!"".equals(date_debut)) {
-                requete_globale.append(filtre_date_debut);
-            }
-            if (!"".equals(date_fin)) {
-                requete_globale.append(filtre_date_fin);
-            }
-
-            // AJOUT DEBUT
-            requete_globale.append(" UNION  ");
-
-            /* AUCUN APPELANT : HABILITATION SUR LA MUTUELLE */
-            requete_globale
-                    .append("select a.DATEAPPEL, t.NOM || ' ' || t.PRENOM as CREATEUR, a.ID, '' AS pole, "
-                            + "mut.LIBELLE as MUTUELLE, "
-                            + "null as EG, null as motif, null as sous_motif, "
-                            + "null as point, null as sous_point,  null as Type_appelant, null as CODE, cod_cloture.LIBELLE, a.commentaire as commentaire "
-                            + "FROM hotline.APPEL a, HOTLINE.TELEACTEUR t, HOTLINE.CAMPAGNE c, APPLICATION.MUTUELLE mut,  "
-                            + "HOTLINE.MOTIFAPPEL moa, HOTLINE.SMOTIFAPPEL smoa, HOTLINE.POINT p, HOTLINE.SPOINT sp, "
-                            + "HOTLINE.CODES cod_cloture, HOTLINE.TELEACTEURCAMPAGNE tc, hotline.CAMPMUT cm "
-                            + "WHERE a.CREATEUR_ID = t.ID AND a.CODEAPPELANT_SELECTIONNE is null "
-                            + "AND a.MOTIF_ID = moa.ID(+) AND a.S_MOTIF_ID = smoa.ID(+) AND a.POINT_ID = p.ID(+) AND a.S_POINT_ID = sp.ID(+) "
-                            + "AND a.CAMPAGNE_ID = c.ID AND a.MUTUELLE_ID = mut.ID "
-                            + "AND tc.CAMPAGNE_ID = cm.CAMPAGNE_ID AND cm.MUTUELLE_ID = a.MUTUELLE_ID AND tc.TELEACTEUR_ID = ? "
-                            + "AND a.CLOTURE_CODE = cod_cloture.CODE ");
-
-            // CHAMPS DE RECHERCHE :
-            if (!"".equals(fiche_id)) {
-                requete_globale.append(" AND a.ID " + comparateur_fiche_id
-                        + " ?  ");
-            }
-
-            if (!"".equals(mot_cle)) {
-                requete_globale.append(" AND upper(a.COMMENTAIRE) "
-                        + comparateur_mot_cle + " upper(?) ");
-            }
-
-            if (!"".equals(motif)) {
-                requete_globale.append(" AND upper(moa.LIBELLE)"
-                        + comparateur_motif + " upper(?) ");
-            }
-            if (!"".equals(sous_motif)) {
-                requete_globale.append(" AND upper(smoa.LIBELLE)"
-                        + comparateur_sous_motif + " upper(?) ");
-            }
-            if (!"".equals(point)) {
-                requete_globale.append(" AND upper(p.LIBELLE)"
-                        + comparateur_point + " upper(?) ");
-            }
-            if (!"".equals(sous_point)) {
-                requete_globale.append(" AND upper(sp.LIBELLE)"
-                        + comparateur_sous_point + " upper(?) ");
-            }
-
-            // FILTRES
-            if (!"".equals(campagne_id)) {
-                requete_globale.append(filtre_campagne);
-            }
-
-            if (!"".equals(reference_id)) {
-                requete_globale.append(filtre_reference);
-            }
-
-            if (!"".equals(createur_id)) {
-                requete_globale.append(filtre_createur);
-            }
-            if (!"".equals(statut_id)) {
-                requete_globale.append(filtre_statut);
-            }
-
-            if (!"".equals(date_debut)) {
-                requete_globale.append(filtre_date_debut);
-            }
-            if (!"".equals(date_fin)) {
-                requete_globale.append(filtre_date_fin);
-            }
-
-            // AJOUT FIN
-            requete_globale.append(" ORDER BY 1 DESC ");
-
-            stmt = conn.prepareStatement(requete_globale.toString(),
-                    ResultSet.TYPE_SCROLL_INSENSITIVE,
-                    ResultSet.CONCUR_READ_ONLY);
-
-            // ASSURES
-            stmt.setString(compteur_bind, teleacteur_id);
-            compteur_bind++;
-
-            if (!"".equals(fiche_id)) {
-                stmt.setString(compteur_bind, fiche_id);
-                compteur_bind++;
-            }
-            if (!"".equals(mot_cle)) {
-                stmt.setString(compteur_bind, mot_cle);
-                compteur_bind++;
-            }
-            if (!"".equals(motif)) {
-                stmt.setString(compteur_bind, motif);
-                compteur_bind++;
-            }
-            if (!"".equals(sous_motif)) {
-                stmt.setString(compteur_bind, sous_motif);
-                compteur_bind++;
-            }
-            if (!"".equals(point)) {
-                stmt.setString(compteur_bind, point);
-                compteur_bind++;
-            }
-            if (!"".equals(sous_point)) {
-                stmt.setString(compteur_bind, sous_point);
-                compteur_bind++;
-            }
-            if (!"".equals(campagne_id)) {
-                stmt.setString(compteur_bind, campagne_id);
-                compteur_bind++;
-            }
-            if (!"".equals(reference_id)) {
-                stmt.setString(compteur_bind, reference_id);
-                compteur_bind++;
-            }
-            if (!"".equals(type_appelant)) {
-                stmt.setString(compteur_bind, type_appelant);
-                compteur_bind++;
-            }
-            if (!"".equals(createur_id)) {
-                stmt.setString(compteur_bind, createur_id);
-                compteur_bind++;
-            }
-            if (!"".equals(statut_id)) {
-                stmt.setString(compteur_bind, statut_id);
-                compteur_bind++;
-            }
-            if (!"".equals(reclamation)) {
-                stmt.setString(compteur_bind, reclamation);
-                compteur_bind++;
-            }
-            if (!"".equals(satisfaction_id)) {
-                stmt.setString(compteur_bind, satisfaction_id);
-                compteur_bind++;
-            }
-            if (!"".equals(date_debut)) {
-                stmt.setString(compteur_bind, date_debut);
-                compteur_bind++;
-            }
-            if (!"".equals(date_fin)) {
-                stmt.setString(compteur_bind, date_fin);
-                compteur_bind++;
-            }
-
-            // ENTREPRISES
-            stmt.setString(compteur_bind, teleacteur_id);
-            compteur_bind++;
-
-            if (!"".equals(fiche_id)) {
-                stmt.setString(compteur_bind, fiche_id);
-                compteur_bind++;
-            }
-            if (!"".equals(mot_cle)) {
-                stmt.setString(compteur_bind, mot_cle);
-                compteur_bind++;
-            }
-            if (!"".equals(motif)) {
-                stmt.setString(compteur_bind, motif);
-                compteur_bind++;
-            }
-            if (!"".equals(sous_motif)) {
-                stmt.setString(compteur_bind, sous_motif);
-                compteur_bind++;
-            }
-            if (!"".equals(point)) {
-                stmt.setString(compteur_bind, point);
-                compteur_bind++;
-            }
-            if (!"".equals(sous_point)) {
-                stmt.setString(compteur_bind, sous_point);
-                compteur_bind++;
-            }
-            if (!"".equals(campagne_id)) {
-                stmt.setString(compteur_bind, campagne_id);
-                compteur_bind++;
-            }
-            if (!"".equals(reference_id)) {
-                stmt.setString(compteur_bind, reference_id);
-                compteur_bind++;
-            }
-            if (!"".equals(type_appelant)) {
-                stmt.setString(compteur_bind, type_appelant);
-                compteur_bind++;
-            }
-            if (!"".equals(createur_id)) {
-                stmt.setString(compteur_bind, createur_id);
-                compteur_bind++;
-            }
-            if (!"".equals(statut_id)) {
-                stmt.setString(compteur_bind, statut_id);
-                compteur_bind++;
-            }
-            if (!"".equals(reclamation)) {
-                stmt.setString(compteur_bind, reclamation);
-                compteur_bind++;
-            }
-            if (!"".equals(satisfaction_id)) {
-                stmt.setString(compteur_bind, satisfaction_id);
-                compteur_bind++;
-            }
-            if (!"".equals(date_debut)) {
-                stmt.setString(compteur_bind, date_debut);
-                compteur_bind++;
-            }
-            if (!"".equals(date_fin)) {
-                stmt.setString(compteur_bind, date_fin);
-                compteur_bind++;
-            }
-
-            // APPELANTS
-            stmt.setString(compteur_bind, teleacteur_id);
-            compteur_bind++;
-            if (!"".equals(fiche_id)) {
-                stmt.setString(compteur_bind, fiche_id);
-                compteur_bind++;
-            }
-            if (!"".equals(mot_cle)) {
-                stmt.setString(compteur_bind, mot_cle);
-                compteur_bind++;
-            }
-            if (!"".equals(motif)) {
-                stmt.setString(compteur_bind, motif);
-                compteur_bind++;
-            }
-            if (!"".equals(sous_motif)) {
-                stmt.setString(compteur_bind, sous_motif);
-                compteur_bind++;
-            }
-            if (!"".equals(point)) {
-                stmt.setString(compteur_bind, point);
-                compteur_bind++;
-            }
-            if (!"".equals(sous_point)) {
-                stmt.setString(compteur_bind, sous_point);
-                compteur_bind++;
-            }
-            if (!"".equals(campagne_id)) {
-                stmt.setString(compteur_bind, campagne_id);
-                compteur_bind++;
-            }
-            if (!"".equals(reference_id)) {
-                stmt.setString(compteur_bind, reference_id);
-                compteur_bind++;
-            }
-            if (!"".equals(type_appelant)) {
-                stmt.setString(compteur_bind, type_appelant);
-                compteur_bind++;
-            }
-            if (!"".equals(createur_id)) {
-                stmt.setString(compteur_bind, createur_id);
-                compteur_bind++;
-            }
-            if (!"".equals(statut_id)) {
-                stmt.setString(compteur_bind, statut_id);
-                compteur_bind++;
-            }
-            if (!"".equals(reclamation)) {
-                stmt.setString(compteur_bind, reclamation);
-                compteur_bind++;
-            }
-            if (!"".equals(satisfaction_id)) {
-                stmt.setString(compteur_bind, satisfaction_id);
-                compteur_bind++;
-            }
-            if (!"".equals(date_debut)) {
-                stmt.setString(compteur_bind, date_debut);
-                compteur_bind++;
-            }
-            if (!"".equals(date_fin)) {
-                stmt.setString(compteur_bind, date_fin);
-                compteur_bind++;
-            }
-
-            // AJOUT
-
-            // PAS D'APPELANT
-            stmt.setString(compteur_bind, teleacteur_id);
-            compteur_bind++;
-
-            if (!"".equals(fiche_id)) {
-                stmt.setString(compteur_bind, fiche_id);
-                compteur_bind++;
-            }
-            if (!"".equals(mot_cle)) {
-                stmt.setString(compteur_bind, mot_cle);
-                compteur_bind++;
-            }
-            if (!"".equals(motif)) {
-                stmt.setString(compteur_bind, motif);
-                compteur_bind++;
-            }
-            if (!"".equals(sous_motif)) {
-                stmt.setString(compteur_bind, sous_motif);
-                compteur_bind++;
-            }
-            if (!"".equals(point)) {
-                stmt.setString(compteur_bind, point);
-                compteur_bind++;
-            }
-            if (!"".equals(sous_point)) {
-                stmt.setString(compteur_bind, sous_point);
-                compteur_bind++;
-            }
-
-            if (!"".equals(campagne_id)) {
-                stmt.setString(compteur_bind, campagne_id);
-                compteur_bind++;
-            }
-
-            if (!"".equals(reference_id)) {
-                stmt.setString(compteur_bind, reference_id);
-                compteur_bind++;
-            }
-
-            if (!"".equals(createur_id)) {
-                stmt.setString(compteur_bind, createur_id);
-                compteur_bind++;
-            }
-            if (!"".equals(statut_id)) {
-                stmt.setString(compteur_bind, statut_id);
-                compteur_bind++;
-            }
-
-            if (!"".equals(date_debut)) {
-                stmt.setString(compteur_bind, date_debut);
-                compteur_bind++;
-            }
-            if (!"".equals(date_fin)) {
-                stmt.setString(compteur_bind, date_fin);
-                compteur_bind++;
-            }
-
-            // AJOUT
-
-            rs = stmt.executeQuery();
-
-            int rowcount = 0;
-            if (rs.last()) {
-                rowcount = rs.getRow();
-                rs.beforeFirst(); 
-            }
-
-            if (rowcount > _max_nbr_fiches_recherchees) {
-                Limite limite = new Limite();
-                limite.setTaille(rowcount);
-                res.add(limite);
-            } else {
-                while (rs.next()) {
-                    unDisplay = new Appel();
-                    unDisplay.setDATEAPPEL((rs.getTimestamp(1) != null) ? rs
-                            .getTimestamp(1) : null);
-                    unDisplay.setTeleacteur((rs.getString(2) != null) ? rs
-                            .getString(2) : "");
-                    unDisplay.setID(rs.getString(3));
-                    unDisplay.setPole((rs.getString(4) != null) ? rs
-                            .getString(4) : "");
-                    unDisplay.setMutuelle((rs.getString(5) != null) ? rs
-                            .getString(5) : "");
-                    unDisplay.setEntiteGestion((rs.getString(6) != null) ? rs
-                            .getString(6) : "");
-                    unDisplay.setMotif((rs.getString(7) != null) ? rs
-                            .getString(7) : "");
-                    unDisplay.setSousMotif((rs.getString(8) != null) ? rs
-                            .getString(8) : "");
-                    unDisplay.setPoint((rs.getString(9) != null) ? rs
-                            .getString(9) : "");
-                    unDisplay.setSousPoint((rs.getString(10) != null) ? rs
-                            .getString(10) : "");
-                    unDisplay.setTypeAppelant((rs.getString(11) != null) ? rs
-                            .getString(11) : "");
-                    unDisplay
-                            .setCodeAdherentNumeroContrat((rs.getString(12) != null) ? rs
-                                    .getString(12) : "");
-                    unDisplay.setStatut((rs.getString(13) != null) ? rs
-                            .getString(13) : "");
-                    unDisplay.setCOMMENTAIRE((rs.getString(14) != null) ? rs
-                            .getString(14) : "");
-                    res.add(unDisplay);
-                }
-            }
-
-            stmt.clearParameters();
-            return res;
-        } catch (Exception e) {
-            LOGGER.error("rechercheFichesAppels", e);
-            res.clear();
-            return res;
-        } finally {
-            closeRsStmtConn(rs,stmt,conn);
-        }
-    }
+	public static Collection<Object> rechercheFichesAppels(Map<String, String> criterMap) {
+
+		// HABILITATIONS :
+		// ASSURES ET ENTREPRISES : sur les EG
+		// AUTRES APPELANTS : sur les mutuelles
+
+		SortedMap<String, String> paramMapping = new TreeMap<String, String>();
+		paramMapping.put("fiche_id", " AND a.ID LIKE ?");
+		paramMapping.put("mot_cle", " AND UPPER(a.COMMENTAIRE) LIKE UPPER(?)");
+		paramMapping.put("reference_id", " AND smoa.REFERENCE_ID IN (?)");
+		paramMapping.put("campagne_id", " AND a.CAMPAGNE_ID IN (?)");
+		paramMapping.put("type_appelant", " AND a.CODEAPPELANT_SELECTIONNE IN (?)");
+		paramMapping.put("createur_id", " AND a.CREATEUR_ID IN (?)");
+		paramMapping.put("statut_id", " AND cod_cloture.CODE IN (?)");
+		paramMapping.put("satisfaction_id", " AND a.SATISFACTION_CODE IN (?)");
+		paramMapping.put("date_debut", " AND TRUNC(A.DATEAPPEL) >= TO_DATE(?,'dd/mm/YYYY')");
+		paramMapping.put("date_fin", " AND TRUNC(A.DATEAPPEL) <= TO_DATE(?,'dd/mm/YYYY')");
+		paramMapping.put("motif", " AND UPPER(moa.LIBELLE) LIKE UPPER(?)");
+		paramMapping.put("sous_motif", " AND UPPER(smoa.LIBELLE) LIKE UPPER(?)");
+		paramMapping.put("point", " AND UPPER(p.LIBELLE) LIKE UPPER(?)");
+		paramMapping.put("sous_point", " AND UPPER(sp.LIBELLE) LIKE UPPER(?)");
+		paramMapping.put("teleacteur_id", " AND teg.TELEACTEUR_ID = ?");
+		
+		StringBuilder critereString = new StringBuilder();
+		for (String param : paramMapping.keySet()) {
+			if (criterMap.containsKey(param)) {
+				String criterValue = "'" + criterMap.get(param) + "'";
+				criterValue = criterValue.replace(",", "','");
+				String criter = paramMapping.get(param);
+				criter = criter.replace("?", criterValue);
+				critereString.append(criter).append("\n");
+			}			
+		}
+		
+
+		Connection conn = null;
+		PreparedStatement stmt = null;
+		ResultSet rs = null;
+		Collection<Object> res = new ArrayList<Object>();
+		Appel unDisplay = null;
+
+		StringBuilder requete_globale = new StringBuilder("");
+
+		/* ASSURE : HABILITATIONS SUR EG */
+		requete_globale.append(
+				"select a.DATEAPPEL, t.NOM || ' ' || t.PRENOM as CREATEUR, a.ID, 'I' AS pole, " + "mut.LIBELLE as MUTUELLE, " + "eg.LIBELLE as EG,  moa.LIBELLE as motif, smoa.LIBELLE as sous_motif, "
+						+ "p.LIBELLE as point, sp.LIBELLE as sous_point, 'Assuré', ben.CODE as CODE, cod_cloture.LIBELLE, a.commentaire as commentaire "
+						+ "FROM hotline.APPEL a, HOTLINE.TELEACTEUR t, HOTLINE.CAMPAGNE c, APPLICATION.MUTUELLE mut, APPLICATION.ENTITE_GESTION eg, "
+						+ "HOTLINE.MOTIFAPPEL moa, HOTLINE.SMOTIFAPPEL smoa, HOTLINE.POINT p, HOTLINE.SPOINT sp, "
+						+ "HOTLINE.CODES cod_cloture, APPLICATION.BENEFICIAIRE ben,  application.personne pers, HOTLINE.CODES cod_type_appelant, hotline.teleacteurentitegestion teg "
+						+ "WHERE a.CREATEUR_ID = t.ID	AND a.CODEAPPELANT_SELECTIONNE = cod_type_appelant.CODE	AND cod_type_appelant.ALIAS = 'ASSURE' "
+						+ "AND a.CAMPAGNE_ID = c.ID AND a.MUTUELLE_ID = mut.ID AND a.ENTITEGESTION_ID = eg.ID(+) AND a.BENEFICIAIRE_ID = ben.ID(+) " + "AND ben.PERSONNE_ID = pers.ID(+) "
+						+ "AND a.MOTIF_ID = moa.ID(+)	AND a.S_MOTIF_ID = smoa.ID(+) AND a.POINT_ID = p.ID(+) AND a.S_POINT_ID = sp.ID(+) "
+						+ "AND teg.ENTITEGESTION_ID = a.ENTITEGESTION_ID AND a.CLOTURE_CODE = cod_cloture.CODE ");
+		requete_globale.append(critereString);
+
+		/* ENTREPRISE : HABILITATIONS SUR EG */
+		requete_globale.append(" UNION  ");
+		requete_globale.append(
+				"select a.DATEAPPEL, t.NOM || ' ' || t.PRENOM as CREATEUR, a.ID, 'C' AS pole,  " + "mut.LIBELLE as MUTUELLE, " + "eg.LIBELLE as EG,  moa.LIBELLE as motif, smoa.LIBELLE as sous_motif, "
+						+ "p.LIBELLE as point, sp.LIBELLE as sous_point, 'Entreprise', etab.CODE as CODE, cod_cloture.LIBELLE, a.commentaire as commentaire "
+						+ "FROM hotline.APPEL a, HOTLINE.TELEACTEUR t, HOTLINE.CAMPAGNE c, APPLICATION.MUTUELLE mut, APPLICATION.ENTITE_GESTION eg, "
+						+ "HOTLINE.MOTIFAPPEL moa, HOTLINE.SMOTIFAPPEL smoa, HOTLINE.POINT p, HOTLINE.SPOINT sp, "
+						+ "HOTLINE.CODES cod_cloture, APPLICATION.ETABLISSEMENT etab, HOTLINE.CODES cod_type_appelant, hotline.teleacteurentitegestion teg "
+						+ "WHERE a.CREATEUR_ID = t.ID	AND a.CODEAPPELANT_SELECTIONNE = cod_type_appelant.CODE AND cod_type_appelant.ALIAS = 'ENTREPRISE'	"
+						+ "AND a.CAMPAGNE_ID = c.ID AND a.MUTUELLE_ID = mut.ID AND a.ENTITEGESTION_ID = eg.ID(+) AND a.ETABLISSEMENT_ID = etab.ID(+) "
+						+ "AND a.MOTIF_ID = moa.ID(+)	AND a.S_MOTIF_ID = smoa.ID(+) AND a.POINT_ID = p.ID(+) AND a.S_POINT_ID = sp.ID(+) "
+						+ "AND teg.ENTITEGESTION_ID = a.ENTITEGESTION_ID AND a.CLOTURE_CODE = cod_cloture.CODE	");
+		requete_globale.append(critereString);
+		
+		/* APPELANT : HABILITATION SUR LA MUTUELLE */
+		requete_globale.append(" UNION  ");
+		requete_globale
+				.append("select a.DATEAPPEL, t.NOM || ' ' || t.PRENOM as CREATEUR, a.ID, '' AS pole, " + "mut.LIBELLE as MUTUELLE, " + "null as EG, moa.LIBELLE as motif, smoa.LIBELLE as sous_motif, "
+						+ "p.LIBELLE as point, sp.LIBELLE as sous_point,  cod_type_appelant.LIBELLE as Type_appelant, null as CODE, cod_cloture.LIBELLE, a.commentaire as commentaire "
+						+ "FROM hotline.APPEL a, HOTLINE.TELEACTEUR t, HOTLINE.CAMPAGNE c, APPLICATION.MUTUELLE mut, "
+						+ "HOTLINE.MOTIFAPPEL moa, HOTLINE.SMOTIFAPPEL smoa, HOTLINE.POINT p, HOTLINE.SPOINT sp, "
+						+ "HOTLINE.CODES cod_cloture, HOTLINE.APPELANT app, HOTLINE.CODES cod_type_appelant, HOTLINE.TELEACTEURCAMPAGNE teg, hotline.CAMPMUT cm "
+						+ "WHERE a.CREATEUR_ID = t.ID AND a.CODEAPPELANT_SELECTIONNE IS NOT NULL AND a.CODEAPPELANT_SELECTIONNE = cod_type_appelant.CODE(+) "
+						+ "AND a.CAMPAGNE_ID = c.ID AND a.MUTUELLE_ID = mut.ID  AND a.APPELANT_ID = app.ID(+) "
+						+ "AND a.MOTIF_ID = moa.ID(+) AND a.S_MOTIF_ID = smoa.ID(+) AND a.POINT_ID = p.ID(+) AND a.S_POINT_ID = sp.ID(+) "
+						+ "AND (cod_type_appelant.CODE IS NULL OR cod_type_appelant.ALIAS NOT IN ('ASSURE', 'ENTREPRISE')) "
+						+ "AND teg.CAMPAGNE_ID = cm.CAMPAGNE_ID AND cm.MUTUELLE_ID = a.MUTUELLE_ID AND a.CLOTURE_CODE = cod_cloture.CODE ");
+		requete_globale.append(critereString);
+		
+		/* AUCUN APPELANT : HABILITATION SUR LA MUTUELLE */
+		requete_globale.append(" UNION  ");
+		requete_globale
+			.append("select a.DATEAPPEL, t.NOM || ' ' || t.PRENOM as CREATEUR, a.ID, '' AS pole, " + "mut.LIBELLE as MUTUELLE, " + "null as EG, null as motif, null as sous_motif, "
+				+ "null as point, null as sous_point,  null as Type_appelant, null as CODE, cod_cloture.LIBELLE, a.commentaire as commentaire "
+				+ "FROM hotline.APPEL a, HOTLINE.TELEACTEUR t, HOTLINE.CAMPAGNE c, APPLICATION.MUTUELLE mut,  "
+				+ "HOTLINE.MOTIFAPPEL moa, HOTLINE.SMOTIFAPPEL smoa, HOTLINE.POINT p, HOTLINE.SPOINT sp, " + "HOTLINE.CODES cod_cloture, HOTLINE.TELEACTEURCAMPAGNE teg, hotline.CAMPMUT cm "
+				+ "WHERE a.CREATEUR_ID = t.ID AND a.CODEAPPELANT_SELECTIONNE is null "
+				+ "AND a.MOTIF_ID = moa.ID(+) AND a.S_MOTIF_ID = smoa.ID(+) AND a.POINT_ID = p.ID(+) AND a.S_POINT_ID = sp.ID(+) " + "AND a.CAMPAGNE_ID = c.ID AND a.MUTUELLE_ID = mut.ID "
+				+ "AND teg.CAMPAGNE_ID = cm.CAMPAGNE_ID AND cm.MUTUELLE_ID = a.MUTUELLE_ID AND a.CLOTURE_CODE = cod_cloture.CODE ");
+		requete_globale.append(critereString);
+		
+		// AJOUT FIN
+		requete_globale.append(" ORDER BY 1 DESC ");
+
+		try {
+
+			conn = getConnexion();
+			stmt = conn.prepareStatement(requete_globale.toString(), ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+			rs = stmt.executeQuery();
+
+			int rowcount = 0;
+			if (rs.last()) {
+				rowcount = rs.getRow();
+				rs.beforeFirst();
+			}
+
+			if (rowcount > _max_nbr_fiches_recherchees) {
+				Limite limite = new Limite();
+				limite.setTaille(rowcount);
+				res.add(limite);
+			} else {
+				while (rs.next()) {
+					unDisplay = new Appel();
+					unDisplay.setDATEAPPEL((rs.getTimestamp(1) != null) ? rs.getTimestamp(1) : null);
+					unDisplay.setTeleacteur((rs.getString(2) != null) ? rs.getString(2) : "");
+					unDisplay.setID(rs.getString(3));
+					unDisplay.setPole((rs.getString(4) != null) ? rs.getString(4) : "");
+					unDisplay.setMutuelle((rs.getString(5) != null) ? rs.getString(5) : "");
+					unDisplay.setEntiteGestion((rs.getString(6) != null) ? rs.getString(6) : "");
+					unDisplay.setMotif((rs.getString(7) != null) ? rs.getString(7) : "");
+					unDisplay.setSousMotif((rs.getString(8) != null) ? rs.getString(8) : "");
+					unDisplay.setPoint((rs.getString(9) != null) ? rs.getString(9) : "");
+					unDisplay.setSousPoint((rs.getString(10) != null) ? rs.getString(10) : "");
+					unDisplay.setTypeAppelant((rs.getString(11) != null) ? rs.getString(11) : "");
+					unDisplay.setCodeAdherentNumeroContrat((rs.getString(12) != null) ? rs.getString(12) : "");
+					unDisplay.setStatut((rs.getString(13) != null) ? rs.getString(13) : "");
+					unDisplay.setCOMMENTAIRE((rs.getString(14) != null) ? rs.getString(14) : "");
+					res.add(unDisplay);
+				}
+			}
+
+			stmt.clearParameters();
+			return res;
+		} catch (Exception e) {
+			LOGGER.error("rechercheFichesAppels", e);
+			res.clear();
+			return res;
+		} finally {
+			closeRsStmtConn(rs, stmt, conn);
+		}
+	}
 
     public static Collection<Appel> rechercheFichesATraiter(
             String teleacteur_id, String sens_tri_fiches_a_traiter,
@@ -7931,7 +7359,7 @@ public class SQLDataService {
             requete_globale.append(" ORDER BY " + col_de_tri_fiches_a_traiter
                     + " " + sens_tri_fiches_a_traiter);
 
-            stmt = conn.prepareStatement(requete_globale.toString());
+            stmt = prepareStatement(conn, requete_globale.toString());
             stmt.setString(1, teleacteur_id);
             stmt.setString(2, teleacteur_id);
             stmt.setString(3, teleacteur_id);
@@ -7995,7 +7423,7 @@ public class SQLDataService {
                     + "and tc.TELEACTEUR_ID = ? order by 3 desc, 2 asc";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, teleacteur_id);
             rs = stmt.executeQuery();
 
@@ -8057,7 +7485,7 @@ public class SQLDataService {
                     + "left outer join hotline.TELEACTEURENTITEGESTION teg on w.IDEG = teg.ENTITEGESTION_ID and teg.TELEACTEUR_ID = ? order by 1, 2 asc";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, teleacteur_id);
             stmt.setString(2, teleacteur_id);
             rs = stmt.executeQuery();
@@ -8118,7 +7546,7 @@ public class SQLDataService {
 
             // LISTE
             requeteList = "SELECT tc.CAMPAGNE_ID FROM HOTLINE.TELEACTEURCAMPAGNE tc WHERE tc.TELEACTEUR_ID = ?";
-            stmt = conn.prepareStatement(requeteList);
+            stmt = prepareStatement(conn, requeteList);
             stmt.setString(1, teleacteur_id);
             rs = stmt.executeQuery();
 
@@ -8146,14 +7574,14 @@ public class SQLDataService {
 
             // DELETE DANS TELEACTEURCAMPAGNE
             requeteDelete = "DELETE FROM HOTLINE.TELEACTEURCAMPAGNE tc WHERE tc.TELEACTEUR_ID = ? AND tc.CAMPAGNE_ID = ?";
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             for (String campagne_id : old_campagnes) {
                 stmt.setString(1, teleacteur_id);
                 stmt.setString(2, campagne_id);
                 stmt.executeQuery();
                 stmt.clearParameters();
             }
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // DELETE DANS TELEACTEURENTITEGESTION
             requeteDelete = "DELETE FROM HOTLINE.TELEACTEURENTITEGESTION teg "
@@ -8167,11 +7595,11 @@ public class SQLDataService {
                     + "                        AND EG.MUTUELLE_ID = CM.MUTUELLE_ID "
                     + "                        AND TEG.ENTITEGESTION_ID = eg.id )";
 
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             stmt.setString(1, teleacteur_id);
             stmt.executeQuery();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // DELETE DANS TELEACTEURENTITEGESTIONBL
             requeteDelete = "DELETE FROM HOTLINE.TELEACTEURENTITEGESTIONBL teg "
@@ -8185,22 +7613,22 @@ public class SQLDataService {
                     + "                        AND EG.MUTUELLE_ID = CM.MUTUELLE_ID "
                     + "                        AND TEG.ENTITEGESTION_ID = eg.id )";
 
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             stmt.setString(1, teleacteur_id);
             stmt.executeQuery();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // INSERTION
             requeteInsert = "INSERT INTO HOTLINE.TELEACTEURCAMPAGNE (TELEACTEUR_ID, CAMPAGNE_ID) VALUES(?,?)";
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
             for (String campagne_id : new_campagnes) {
                 stmt.setString(1, teleacteur_id);
                 stmt.setString(2, campagne_id);
                 stmt.executeQuery();
                 stmt.clearParameters();
             }
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             requeteInsert = "INSERT INTO HOTLINE.TELEACTEURENTITEGESTION( TELEACTEUR_ID, ENTITEGESTION_ID ) "
                     + "SELECT DISTINCT TC.TELEACTEUR_ID,eg.id "
@@ -8221,7 +7649,7 @@ public class SQLDataService {
                     + "SELECT TEG.TELEACTEUR_ID,TEG.ENTITEGESTION_ID "
                     + "FROM HOTLINE.TELEACTEURENTITEGESTION teg "
                     + "WHERE TEG.TELEACTEUR_ID = ? ";
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
             stmt.setString(1, teleacteur_id);
             stmt.setString(2, teleacteur_id);
             stmt.executeQuery();
@@ -8255,23 +7683,22 @@ public class SQLDataService {
 
             // DELETE DANS TELEACTEURENTITEGESTION
             requeteDelete = "DELETE FROM HOTLINE.TELEACTEURENTITEGESTION teg where teg.TELEACTEUR_ID = ?";
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             stmt.setString(1, teleacteur_id);
             stmt.executeQuery();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // EVENTUELS INSERT
             if (ids_eg != null) {
                 int taille_tableau = ids_eg.length;
                 requeteInsert = "INSERT INTO HOTLINE.TELEACTEURENTITEGESTION (TELEACTEUR_ID, ENTITEGESTION_ID) VALUES(?,?)";
+                stmt = prepareStatement(conn, requeteInsert);
                 for (int i = 0; i < taille_tableau; i++) {
-                    stmt = conn.prepareStatement(requeteInsert);
+                    stmt.clearParameters();
                     stmt.setString(1, teleacteur_id);
                     stmt.setString(2, ids_eg[i]);
                     stmt.executeQuery();
-                    stmt.clearParameters();
-                    stmt.close();
                 }
             }
 
@@ -8304,17 +7731,17 @@ public class SQLDataService {
 
             // DELETE DANS TELEACTEURENTITEGESTIONBL
             requeteDelete = "DELETE FROM HOTLINE.TELEACTEURENTITEGESTIONBL teg where teg.ENTITEGESTION_ID = ?";
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             stmt.setString(1, entite_gestion_id);
             stmt.executeQuery();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // EVENTUELS INSERT
             if (ids_teleacteurs != null) {
                 int taille_tableau = ids_teleacteurs.length;
                 requeteInsert = "INSERT INTO HOTLINE.TELEACTEURENTITEGESTIONBL (TELEACTEUR_ID, ENTITEGESTION_ID) VALUES(?,?)";
-                stmt = conn.prepareStatement(requeteInsert);
+                stmt = prepareStatement(conn, requeteInsert);
                 for (int i = 0; i < taille_tableau; i++) {
                     stmt.clearParameters();
                     stmt.setString(1, ids_teleacteurs[i]);
@@ -8322,7 +7749,7 @@ public class SQLDataService {
                     stmt.executeQuery();
                     stmt.clearParameters();
                 }
-                stmt.close();
+                closeStmtConn(stmt, null);
             }
 
             conn.commit();
@@ -8361,17 +7788,17 @@ public class SQLDataService {
             if (ids_teleacteurs != null) {
                 int taille_tableau = ids_teleacteurs.length;
                 for (int i = 0; i < taille_tableau; i++) {
-                    stmt = conn.prepareStatement(requeteDeleteTC);
+                    stmt = prepareStatement(conn, requeteDeleteTC);
                     stmt.setString(1, ids_teleacteurs[i]);
                     stmt.executeQuery();
                     stmt.clearParameters();
-                    stmt.close();
+                    closeStmtConn(stmt, null);
 
-                    stmt = conn.prepareStatement(requeteDeleteTEG);
+                    stmt = prepareStatement(conn, requeteDeleteTEG);
                     stmt.setString(1, ids_teleacteurs[i]);
                     stmt.executeQuery();
                     stmt.clearParameters();
-                    stmt.close();
+                    closeStmtConn(stmt, null);
                 }
             }
 
@@ -8385,19 +7812,19 @@ public class SQLDataService {
             if (ids_teleacteurs != null) {
                 int taille_tableau = ids_teleacteurs.length;
                 for (int i = 0; i < taille_tableau; i++) {
-                    stmt = conn.prepareStatement(requeteInsertTC);
+                    stmt = prepareStatement(conn, requeteInsertTC);
                     stmt.setString(1, ids_teleacteurs[i]);
                     stmt.setString(2, teleacteur_id);
                     stmt.executeQuery();
                     stmt.clearParameters();
-                    stmt.close();
+                    closeStmtConn(stmt, null);
 
-                    stmt = conn.prepareStatement(requeteInsertTEG);
+                    stmt = prepareStatement(conn, requeteInsertTEG);
                     stmt.setString(1, ids_teleacteurs[i]);
                     stmt.setString(2, teleacteur_id);
                     stmt.executeQuery();
                     stmt.clearParameters();
-                    stmt.close();
+                    closeStmtConn(stmt, null);
                 }
             }
 
@@ -8438,7 +7865,7 @@ public class SQLDataService {
                     + "WHERE utl.UTL_ID = ? AND utl.UTL_PRS_ID = prs.PRS_ID AND prs.prs_id = psp.psp_prs_id(+) "
                     + "AND psp.psp_srv_id = srv.srv_id(+) AND psp.psp_pol_id = pol.pol_id(+) "
                     + "AND prs.PRS_PRS_ID_SUPERIEUR = respon.PRS_ID(+)";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, utl_id);
             rs = stmt.executeQuery();
 
@@ -8466,7 +7893,7 @@ public class SQLDataService {
 
             requete = "SELECT c.LIBELLE, c.ACTIF FROM HOTLINE.CAMPAGNE c, HOTLINE.TELEACTEURCAMPAGNE tc WHERE tc.TELEACTEUR_ID = ? "
                     + "AND tc.CAMPAGNE_ID = c.ID order by 1 asc";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, teleacteur_id);
             rs = stmt.executeQuery();
 
@@ -8492,7 +7919,7 @@ public class SQLDataService {
                     + "WHERE teg.TELEACTEUR_ID = ? "
                     + "AND teg.ENTITEGESTION_ID = eg.ID "
                     + "AND eg.MUTUELLE_ID = mut.ID " + "ORDER BY 1 asc, 3 asc";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, teleacteur_id);
             rs = stmt.executeQuery();
 
@@ -8536,7 +7963,7 @@ public class SQLDataService {
             String requete = "DELETE FROM HOTLINE.MESSAGE m WHERE m.ID = ?";
             conn = getConnexion();
             conn.setAutoCommit(false);
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, message_id);
 
             stmt.executeQuery();
@@ -8562,16 +7989,24 @@ public class SQLDataService {
         PreparedStatement stmt = null;
 
         try {
-            String requete = "DELETE FROM HOTLINE.T_TRANSFERTS_TRA t WHERE t.TRA_ID = ?";
-            conn = getConnexion();
+        	conn = getConnexion();
             conn.setAutoCommit(false);
-            stmt = conn.prepareStatement(requete);
+            
+            String requete = "DELETE FROM HOTLINE.T_TRANSFERTCAMPAGNE_TCA t WHERE t.TCA_TRA_ID = ?";
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, transfert_id);
-
+            stmt.execute();
+            closeStmtConn(stmt, null);
+            
+            requete = "DELETE FROM HOTLINE.T_TRANSFERTS_TRA t WHERE t.TRA_ID = ?";
+            stmt = prepareStatement(conn, requete);
+            stmt.setString(1, transfert_id);
             stmt.executeQuery();
-            stmt.clearParameters();
+            stmt.clearParameters();            
+            
             conn.commit();
             return true;
+            
         } catch (Exception e) {
             LOGGER.error("supprimerTransfert", e);
             try {
@@ -8596,13 +8031,13 @@ public class SQLDataService {
             conn.setAutoCommit(false);
 
             String requete = "DELETE FROM HOTLINE.TELEACTEURENTITEGESTIONBL tegbl WHERE tegbl.ENTITEGESTION_ID = ?";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, entite_gestion_id);
             stmt.executeQuery();
             stmt.clearParameters();
 
             requete = "DELETE FROM HOTLINE.ENTITEGESTIONBLACKLISTEE egbl WHERE egbl.ENTITEGESTION_ID = ? ";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, entite_gestion_id);
             stmt.executeQuery();
             stmt.clearParameters();
@@ -8633,7 +8068,7 @@ public class SQLDataService {
             String requete = "SELECT c.ID, c.LIBELLE FROM HOTLINE.CAMPAGNE c order by 2 asc";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
 
@@ -8674,7 +8109,7 @@ public class SQLDataService {
             }
             requete += "order by 2 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
 
             while (rs.next()) {
@@ -8713,7 +8148,7 @@ public class SQLDataService {
                     + "m.DATEDEBUT = to_date(?, 'DD/MM/YYYY'), m.DATEFIN = to_date(?, 'DD/MM/YYYY') "
                     + "WHERE m.ID = ?";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, campagne_id);
             stmt.setString(2, titre);
             stmt.setString(3, contenu);
@@ -8750,7 +8185,7 @@ public class SQLDataService {
 
             String requete = "INSERT INTO HOTLINE.MESSAGE (CAMPAGNE_ID, TITRE, CONTENU, DATEDEBUT, DATEFIN) VALUES (?, ?, ?, ?, ?)";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, campagne_id);
             stmt.setString(2, titre);
             stmt.setString(3, contenu);
@@ -8774,24 +8209,44 @@ public class SQLDataService {
         }
     }
 
-    public static boolean creerTransfert(String libelle, String email) {
+    public static boolean creerTransfert(String libelle, String email, String...campagnes) {
 
         Connection conn = null;
-        PreparedStatement stmt = null;
+        PreparedStatement stmt = null;   
 
         try {
             conn = getConnexion();
             conn.setAutoCommit(false);
+            
+            String requete = "SELECT HOTLINE.SEQ_TRA.nextVal FROM DUAL";
+            ResultSet rs = conn.createStatement().executeQuery(requete);
+            Number id_cree = null;
+			if (rs.next()) {
+				id_cree = rs.getLong(1);
+			}
 
-            String requete = "INSERT INTO HOTLINE.T_TRANSFERTS_TRA (TRA_ID, TRA_LIBELLE, TRA_EMAIL) VALUES ( HOTLINE.SEQ_TRA.nextVal, ?, ? )";
-
-            stmt = conn.prepareStatement(requete);
+            requete = "INSERT INTO HOTLINE.T_TRANSFERTS_TRA (TRA_ID, TRA_LIBELLE, TRA_EMAIL) VALUES (" + id_cree + ", ?, ? )";
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, libelle);
             stmt.setString(2, email);
-            stmt.executeQuery();
-            conn.commit();
+            int nb = stmt.executeUpdate();
+            closeStmtConn(stmt, null);
 
+			if (nb > 0 && campagnes != null && campagnes.length > 0) {
+				
+				requete = "INSERT INTO HOTLINE.T_TRANSFERTCAMPAGNE_TCA (TCA_TRA_ID, TCA_CAMPAGNE_ID) VALUES (" + id_cree + ", ?)";
+				stmt = prepareStatement(conn, requete);				
+				for (String campagne : campagnes) {
+					if (StringUtils.isNotBlank(campagne)) {
+						stmt.setLong(1, Long.parseLong(campagne));
+						stmt.executeUpdate();
+					}
+				}				
+			}
+			
+			conn.commit();		
             return true;
+            
         } catch (Exception e) {
             LOGGER.error("creerTransfert", e);
             try {
@@ -8820,12 +8275,12 @@ public class SQLDataService {
 
             if (ids_entites_gestions != null) {
                 for (int i = 0; i < ids_entites_gestions.length; i++) {
-                    stmt = conn.prepareStatement(requete);
+                    stmt = prepareStatement(conn, requete);
                     stmt.setString(1, ids_entites_gestions[i]);
                     stmt.setString(2, ids_entites_gestions[i]);
                     stmt.executeQuery();
                     stmt.clearParameters();
-                    stmt.close();
+                    closeStmtConn(stmt, null);
                 }
             }
 
@@ -8928,7 +8383,7 @@ public class SQLDataService {
                     + "AND prs.prs_id = pem.pem_prs_id_employe(+) AND prs.prs_type = 'PHY'  "
                     + "AND utl.UTL_PRS_ID = prs.PRS_ID AND utl.UTL_ID = ? ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, utl_id);
 
             sb.append("<table cellpadding='4' cellspacing='2' width='100%'>");
@@ -9042,7 +8497,7 @@ public class SQLDataService {
             String requete = "SELECT rst.RST_ID, rst.RST_LIBELLE, rst.RST_ACTIF "
                     + "FROM EVENEMENT.T_REFS_STATS_RST rst " + "order by 2 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 unDisplay = new ReferenceStatistique();
@@ -9075,7 +8530,7 @@ public class SQLDataService {
             String requete = "SELECT rst.RST_ID, rst.LIBELLE, rst.ACTIF, rst.ID "
                     + "FROM EVENEMENT.EVENEMENT_S_MOTIF rst WHERE ACTIF = 1 order by 2 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 unDisplay = new ReferenceStatistique();
@@ -9108,7 +8563,7 @@ public class SQLDataService {
             String requete = "SELECT ID, MUTUELLE_ID, CAMPAGNE_ID, LIBELLE, DISCOURS, CONSIGNES, REPONSE "
                     + "FROM HOTLINE.SCENARIO WHERE CAMPAGNE_ID = ? and MUTUELLE_ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idCampagne);
             stmt.setString(2, idMutuelle);
             rs = stmt.executeQuery();
@@ -9131,8 +8586,20 @@ public class SQLDataService {
             closeRsStmtConn(rs,stmt,conn);
         }
     }
-
+    
     public static Mutuelle getMutuelleById(String idMutuelle) {
+    	return getMutuelle("ID", idMutuelle);
+    }
+    
+    public static Mutuelle getMutuelleByLibelle(String libelle) {
+    	return getMutuelle("LIBELLE", libelle);
+    }
+    
+    public static Mutuelle getMutuelleByCode(String code) {
+    	return getMutuelle("CODE", code);
+    }
+
+    public static Mutuelle getMutuelle(String cleCritere, String valeurCritere) {
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -9140,10 +8607,10 @@ public class SQLDataService {
 
         try {
             Mutuelle unDisplay = null;
-            String requete = "SELECT ID, LIBELLE, CODE FROM APPLICATION.MUTUELLE WHERE ID = ?";
+            String requete = "SELECT ID, LIBELLE, CODE FROM APPLICATION.MUTUELLE WHERE " + cleCritere + " = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
-            stmt.setString(1, idMutuelle);
+            stmt = prepareStatement(conn, requete);
+            stmt.setString(1, valeurCritere);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 unDisplay = new Mutuelle();
@@ -9175,7 +8642,7 @@ public class SQLDataService {
             String requete = "SELECT ID, LIBELLE, CODE "
                     + "FROM APPLICATION.MUTUELLE WHERE ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idMutuelle);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -9219,7 +8686,7 @@ public class SQLDataService {
                     + "    and s.CAMPAGNE_ID = c.ID "
                     + "    and s.MUTUELLE_ID = m.id ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setLong(1, Long.parseLong(leModeleProcedureMail.getId()));
             rs = stmt.executeQuery();
             InfosScenario infosScenario = null;
@@ -9265,7 +8732,7 @@ public class SQLDataService {
                     + "    and s.CAMPAGNE_ID = c.ID "
                     + "    and s.MUTUELLE_ID = m.id   ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setLong(1, Long.parseLong(unModelePEC.getId()));
             rs = stmt.executeQuery();
             InfosScenario infosScenario = null;
@@ -9301,7 +8768,7 @@ public class SQLDataService {
             conn = getConnexion();
 
             String requete = "SELECT ID, LIBELLE " + "FROM HOTLINE.MODELE_PEC ";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
             ModelePEC leModelePEC = null;
             while (rs.next()) {
@@ -9337,7 +8804,7 @@ public class SQLDataService {
                             + "     HOTLINE.MODELE_PEC mp "
                             + "WHERE se.SCENARIO_ID=? AND se.MODELEPEC_ID=mp.ID";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idScenario);
             rs = stmt.executeQuery();
             
@@ -9383,7 +8850,7 @@ public class SQLDataService {
                     + "WHERE SCENARIO_ID  = ? AND MODPROCEDURE_ID=?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setLong(1, Long.parseLong(leScenario.getID()));
             stmt.setLong(2, Long.parseLong(leModelProcedureMail.getId()));
 
@@ -9398,8 +8865,8 @@ public class SQLDataService {
                             + "     MOTIF_ID," + "     S_MOTIF_ID,"
                             + "     POINT_ID," + "     S_POINT_ID )"
                             + "VALUES(?,?,?,?,?,?)";
-                    stmt.close();
-                    stmt = conn.prepareStatement(requete);
+                    closeStmtConn(stmt, null);
+                    stmt = prepareStatement(conn, requete);
 
                     // Analyse du rattachement
                     stmt.setLong(1, Long.parseLong(leScenario.getID()));
@@ -9437,8 +8904,8 @@ public class SQLDataService {
                             + "SET 	MOTIF_ID=?," + "     S_MOTIF_ID=?,"
                             + "     POINT_ID=?," + "     S_POINT_ID=? "
                             + "WHERE SCENARIO_ID=? AND MODPROCEDURE_ID=?";
-                    stmt.close();
-                    stmt = conn.prepareStatement(requete);
+                    closeStmtConn(stmt, null);
+                    stmt = prepareStatement(conn, requete);
 
                     // Analyse du rattachement
                     stmt.setLong(5, Long.parseLong(leScenario.getID()));
@@ -9496,7 +8963,7 @@ public class SQLDataService {
                     + "WHERE SCENARIO_ID  = ? AND MODELEPEC_ID = ? ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, leScenario.getID());
             stmt.setString(2, leModelePEC.getId());
             stmt.executeQuery();
@@ -9525,28 +8992,28 @@ public class SQLDataService {
                 requete = "SELECT count(*) "
                         + "FROM HOTLINE.RATTACHEMENT_PEC "
                         + "WHERE SCENARIO_ID=? AND MOTIF_ID=? ";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setLong(1, Long.parseLong(leScenario.getID()));
                 stmt.setLong(2, Long.parseLong(((Motif) item).getId()));
             } else if (item instanceof SousMotif) {
                 requete = "SELECT count(*) "
                         + "FROM HOTLINE.RATTACHEMENT_PEC "
                         + "WHERE SCENARIO_ID=? AND S_MOTIF_ID=? ";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setLong(1, Long.parseLong(leScenario.getID()));
                 stmt.setLong(2, Long.parseLong(((SousMotif) item).getId()));
             } else if (item instanceof Point) {
                 requete = "SELECT count(*) "
                         + "FROM HOTLINE.RATTACHEMENT_PEC "
                         + "WHERE SCENARIO_ID=? AND POINT_ID=? ";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setLong(1, Long.parseLong(leScenario.getID()));
                 stmt.setLong(2, Long.parseLong(((Point) item).getId()));
             } else if (item instanceof SousPoint) {
                 requete = "SELECT count(*) "
                         + "FROM HOTLINE.RATTACHEMENT_PEC "
                         + "WHERE SCENARIO_ID=? AND S_POINT_ID=? ";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setLong(1, Long.parseLong(leScenario.getID()));
                 stmt.setLong(2, Long.parseLong(((SousPoint) item).getId()));
             }
@@ -9580,7 +9047,7 @@ public class SQLDataService {
                     + "WHERE SCENARIO_ID  = ? AND MODELEPEC_ID=?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, leScenario.getID());
             stmt.setString(2, leModelePEC.getId());
             rs = stmt.executeQuery();
@@ -9592,8 +9059,8 @@ public class SQLDataService {
                     requete = "INSERT INTO HOTLINE.RATTACHEMENT_PEC( SCENARIO_ID, MODELEPEC_ID, "
                             + " MOTIF_ID, S_MOTIF_ID, POINT_ID, S_POINT_ID )" 
                             + "VALUES(?,?,?,?,?,?)";
-                    stmt.close();
-                    stmt = conn.prepareStatement(requete);
+                    closeStmtConn(stmt, null);
+                    stmt = prepareStatement(conn, requete);
 
                     // Analyse du rattachement
                     stmt.setLong(1, Long.parseLong(leScenario.getID()));
@@ -9629,8 +9096,8 @@ public class SQLDataService {
                             + "SET 	MOTIF_ID=?," + "     S_MOTIF_ID=?,"
                             + "     POINT_ID=?," + "     S_POINT_ID=? "
                             + "WHERE SCENARIO_ID=? AND MODELEPEC_ID=?";
-                    stmt.close();
-                    stmt = conn.prepareStatement(requete);
+                    closeStmtConn(stmt, null);
+                    stmt = prepareStatement(conn, requete);
 
                     // Analyse du rattachement
                     stmt.setLong(5, Long.parseLong(leScenario.getID()));
@@ -9689,7 +9156,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.RATTACHEMENT_PROCEDURE "
                     + "WHERE SCENARIO_ID  = ? " + "AND MODPROCEDURE_ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setLong(1, Long.parseLong(leScenario.getID()));
             stmt.setLong(2, Long.parseLong(laProcedureMail.getId()));
 
@@ -9739,7 +9206,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.RATTACHEMENT_PEC rp "
                     + "WHERE SCENARIO_ID  = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, unScenario.getID());
             rs = stmt.executeQuery();
             
@@ -9791,7 +9258,7 @@ public class SQLDataService {
                     + "LEFT OUTER JOIN HOTLINE.SCENARIO_EVENEMENT se ON s.ID = SE.SCENARIO_ID AND se.S_MOTIF_EVENEMENT_ID=? "
                     + "WHERE s.ID = ? " ;
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, _evenement_pec_id);
             stmt.setString(2, idScenario);
             rs = stmt.executeQuery();
@@ -9825,7 +9292,7 @@ public class SQLDataService {
                             + "WHERE se.SCENARIO_ID = ? "
                             + "     AND se.S_MOTIF_EVENEMENT_ID=?"
                             + "     AND mp.ID = se.MODELEPEC_ID";
-                    stmt = conn.prepareStatement(requete);
+                    stmt = prepareStatement(conn, requete);
                     stmt.setString(1, unDisplay.getID());
                     stmt.setString(2, _evenement_pec_id); 
                     rs = stmt.executeQuery();
@@ -9859,7 +9326,7 @@ public class SQLDataService {
                     + "      HOTLINE.MODELE_PROCEDURE m "
                     + "WHERE r.SCENARIO_ID=? AND r.MODPROCEDURE_ID=m.ID";
 
-            stmt = conn.prepareStatement(requeteProcedure);
+            stmt = prepareStatement(conn, requeteProcedure);
             stmt.setString(1, idScenario);
             rs = stmt.executeQuery();
 
@@ -9885,6 +9352,320 @@ public class SQLDataService {
             closeRsStmtConn(rs,stmt,conn);
         }
     }
+    
+    private static String getNomTableItem(ItemScenario item) {
+    	return (String) getProprieteItem(item, "nomTable");
+    }
+    
+    private static String getChampReferenceItem(ItemScenario item) {
+    	return (String) getProprieteItem(item, "champReference");
+    }
+    
+    private static String getChampParentItem(ItemScenario item) {
+    	return (String) getProprieteItem(item, "champParent");
+    }
+    
+    private static String getChampLibelleItem(ItemScenario item) {
+    	return (String) getProprieteItem(item, "champLibelle");
+    }
+    
+    @SuppressWarnings("unchecked")
+	private static Collection<? extends ItemScenario> getSousItems(ItemScenario item) {
+    	return (Collection<? extends ItemScenario>) getProprieteItem(item, "sousItems");
+    }
+    
+    
+	private static Object getProprieteItem(ItemScenario item, String propriete) {
+
+		Object retour = null;
+
+		if (Arrays.asList("nomTable", "champReference", "sousItems", "champParent", "champLibelle").contains(propriete)) {
+
+			if ("champLibelle".equals(propriete)) {
+				retour = "LIBELLE";
+			}
+			if (item.getClass().equals(Scenario.class)) {
+				
+				if ("nomTable".equals(propriete)) {
+					retour = "HOTLINE.SCENARIO";
+				} else if ("champReference".equals(propriete)) {
+					retour = "SCENARIO_ID";
+				} else if ("sousItems".equals(propriete)) {
+					retour = ((Scenario) item).getMotifs();
+				} else if ("champParent".equals(propriete)) {
+					retour = "CAMPAGNE_ID";
+				} else if ("champLibelle".equals(propriete)) {
+					retour = "MUTUELLE_ID";
+				}
+			} else if (item.getClass().equals(Motif.class)) {
+				
+				if ("nomTable".equals(propriete)) {
+					retour = "HOTLINE.MOTIFAPPEL";
+				} else if ("champReference".equals(propriete)) {
+					retour = "MOTIF_ID";
+				} else if ("sousItems".equals(propriete)) {
+					retour = ((Motif) item).getSousMotifs();
+				} else if ("champParent".equals(propriete)) {
+					retour = "SCENARIO_ID";
+				}
+			} else if (item.getClass().equals(SousMotif.class)) {
+				
+				if ("nomTable".equals(propriete)) {
+					retour = "HOTLINE.SMOTIFAPPEL";
+				} else if ("champReference".equals(propriete)) {
+					retour = "S_MOTIF_ID";
+				} else if ("sousItems".equals(propriete)) {
+					retour = ((SousMotif) item).getPoints();
+				} else if ("champParent".equals(propriete)) {
+					retour = "MOTIF_ID";
+				}
+			} else if (item.getClass().equals(Point.class)) {
+				
+				if ("nomTable".equals(propriete)) {
+					retour = "HOTLINE.POINT";
+				} else if ("champReference".equals(propriete)) {
+					retour = "POINT_ID";
+				} else if ("sousItems".equals(propriete)) {
+					retour = ((Point) item).getSousPoints();
+				} else if ("champParent".equals(propriete)) {
+					retour = "S_MOTIF_ID";
+				}
+			} else if (item.getClass().equals(SousPoint.class)) {
+				
+				if ("nomTable".equals(propriete)) {
+					retour = "HOTLINE.SPOINT";
+				} else if ("champReference".equals(propriete)) {
+					retour = "S_POINT_ID";
+				} else if ("champParent".equals(propriete)) {
+					retour = "POINT_ID";
+				}
+			}
+		}
+		return retour;
+	}	
+    
+	public static int supprimerItemScenario(ItemScenario item) {
+
+		Connection conn = null;
+		PreparedStatement stm = null;
+		
+		String table = getNomTableItem(item);
+		Collection<? extends ItemScenario> sousItems = getSousItems(item);
+		String champReference = getChampReferenceItem(item);
+
+		int count = 0;
+
+		try {			
+			conn = getConnexion();
+
+			// on supprime les sous items d'abord pour cause de contrainte référentielle
+			if (sousItems != null) {
+				for (ItemScenario sousItem : sousItems) {
+					count += supprimerItemScenario(sousItem);
+				}
+			}
+			
+			// on tente ensuite la suppression de l'item en cours en commençant par les dépendances
+			boolean succes = false;
+			String req1 = "DELETE FROM HOTLINE.RATTACHEMENT_PEC WHERE " + champReference + " = ? ";
+			String req2 = "DELETE FROM HOTLINE.RATTACHEMENT_PROCEDURE WHERE " + champReference + " = ? ";
+			String req3 = "DELETE FROM " + table + " WHERE ID = ? ";
+			
+			try {
+				stm = prepareStatement(conn, req1);
+				stm.setLong(1, Long.parseLong(item.getId()));
+				count += stm.executeUpdate();
+				stm.clearParameters();
+				closeStmtConn(stm, null);
+				
+				stm = prepareStatement(conn, req2);
+				stm.setLong(1, Long.parseLong(item.getId()));
+				count += stm.executeUpdate();
+				stm.clearParameters();
+				closeStmtConn(stm, null);
+				
+				stm = prepareStatement(conn, req3);
+				stm.setLong(1, Long.parseLong(item.getId()));
+				count += stm.executeUpdate();
+				stm.clearParameters();
+				closeStmtConn(stm, null);
+				
+				succes = true;
+				
+			} catch (SQLException sqle) {
+				succes = false;
+			}
+			
+			// si la suppression physique a échoué, on fait une suppression logique
+			if (!succes) {
+				String req4 = "UPDATE " + table + " SET ACTIF = 0 WHERE ID = ? ";
+				
+				stm = prepareStatement(conn, req4);
+				stm.setLong(1, Long.parseLong(item.getId()));
+				count += stm.executeUpdate();
+				stm.clearParameters();
+			}
+			
+
+		} catch (Exception e) {
+			LOGGER.error("supprimerItemScenario", e);
+			try {
+				count = 0;
+				conn.rollback();
+			} catch (Exception sqle) {
+				LOGGER.error(_AnoRollBack, sqle);
+			}
+
+		} finally {
+			closeStmtConn(stm, conn);
+		}
+		return count;
+
+	}
+    
+	public static int ajouterItemScenario(ItemScenario item, String idParent) {
+
+		Connection conn = null;
+		PreparedStatement stmt = null;
+		
+		String table = getNomTableItem(item);
+		String cleIdParent = getChampParentItem(item);
+		Collection<? extends ItemScenario> sousItems = getSousItems(item);
+		int count = 0;
+
+		try {
+			conn = getConnexion();			
+			
+			String requete = "UPDATE " + table + " SET DISCOURS = ?, CONSIGNES = ?, DATE_MAJ = ?, ACTIF = 1 "
+					+ "WHERE " + cleIdParent + " = ? AND LIBELLE = ? ";
+			
+			stmt = prepareStatement(conn, requete);
+			stmt.setString(1, item.getDISCOURS());
+			stmt.setString(2, item.getCONSIGNES());
+			stmt.setDate(3, new java.sql.Date(new Date().getTime()));
+			stmt.setLong(4, Long.parseLong(idParent));
+			stmt.setString(5, item.getLibelle());
+			
+			try {
+				count = stmt.executeUpdate();				
+			} catch (SQLException sqle) {
+				count = 0;
+			}
+			stmt.clearParameters();
+			closeStmtConn(stmt, null);
+			
+			if (count == 0) {
+				requete = "INSERT INTO " + table + " (" + cleIdParent + ", LIBELLE, DISCOURS, CONSIGNES, DATE_MAJ) " 
+						+ "VALUES (?, ?, ?, ?, ?) ";
+
+				stmt = prepareStatement(conn, requete);
+				stmt.setLong(1, Long.parseLong(idParent));
+				stmt.setString(2, item.getLibelle());
+				stmt.setString(3, item.getDISCOURS());
+				stmt.setString(4, item.getCONSIGNES());
+				stmt.setDate(5, new java.sql.Date(new Date().getTime()));
+
+				count = stmt.executeUpdate();
+				stmt.clearParameters();
+			}
+			
+			// on insère récursivement les sous éléments
+			if (sousItems != null) {
+				ItemScenario itemInsere = getItemScenario(item, idParent);
+				idParent = itemInsere.getId();
+				for (ItemScenario sousItem : sousItems) {
+					count += ajouterItemScenario(sousItem, idParent);
+				}
+			}
+
+		} catch (Exception e) {
+			LOGGER.error("ajouterScenarioPEC", e);
+			try {
+				count = 0;
+				conn.rollback();
+			} catch (Exception sqle) {
+				LOGGER.error(_AnoRollBack, sqle);
+			}
+
+		} finally {
+			closeStmtConn(stmt, conn);
+		}
+		return count;
+
+	}
+    
+	public static ItemScenario getItemScenario(ItemScenario item, String idParent) {
+		
+		ItemScenario retour = null;    	
+    	Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        String table = getNomTableItem(item);
+    	String cleIdParent = getChampParentItem(item);
+    	String cleLibelle = getChampLibelleItem(item);		
+		String libelle = item.getLibelle();		
+		if (item instanceof Scenario) {
+			libelle = ((Scenario) item).getMUTUELLE_ID();
+		}
+		
+        try {
+        	conn = getConnexion();        	
+
+            String requete = "SELECT * FROM " + table + " WHERE " + cleIdParent + " = ? AND " + cleLibelle + " = ? ";
+            stmt = prepareStatement(conn, requete);
+            stmt.setString(1, idParent);
+            stmt.setString(2, libelle);
+            rs = stmt.executeQuery();
+            stmt.clearParameters();
+
+            if (rs.next()) {
+                retour = item.getClass().newInstance();
+                for (int i = 1; i < rs.getMetaData().getColumnCount(); i++) {
+                	String nom = rs.getMetaData().getColumnName(i);
+                	Object valeur = rs.getObject(i);
+                	BeanUtils.setProperty(retour, nom, valeur);
+                	nom = WordUtils.capitalizeFully(nom.replaceAll("_", " ")).replaceAll(" ", "");
+                	BeanUtils.setProperty(retour, nom, valeur);
+					if (nom.length() > 0) {
+						nom = nom.substring(0, 1).toLowerCase().concat(nom.substring(1));
+						BeanUtils.setProperty(retour, nom, valeur);
+					}
+                }
+            }
+
+        } catch (Exception e) {
+            LOGGER.error("getScenarioMotifs", e);
+
+        } finally {
+            closeRsStmtConn(rs,stmt,conn);
+        }
+    	
+    	return retour;
+	}
+    
+    
+	public static ItemScenario getItemScenario(String niveau, String idParent, String libelle) {
+
+		ItemScenario item = null;
+
+		if (NIVEAU_SCENARIO.equals(niveau)) {
+			Scenario scenario = new Scenario();
+			scenario.setMUTUELLE_ID(libelle);
+			item = scenario;
+		} else if (NIVEAU_MOTIF.equals(niveau)) {
+			item = new Motif();
+		} else if (NIVEAU_SOUSMOTIF.equals(niveau)) {
+			item = new SousMotif();
+		} else if (NIVEAU_POINT.equals(niveau)) {
+			item = new Point();
+		} else if (NIVEAU_SOUSPOINT.equals(niveau)) {
+			item = new SousPoint();
+		}
+		item.setLibelle(libelle);
+
+		return getItemScenario(item, idParent);
+	}
 
     public static Collection<Motif> getScenarioMotifs(String idScenario) {
 
@@ -9900,7 +9681,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.MOTIFAPPEL moa, HOTLINE.SCENARIO s "
                     + "WHERE s.ID = ? and moa.SCENARIO_ID = s.ID and moa.ACTIF = 1 order by 2 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idScenario);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -9941,7 +9722,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.SMOTIFAPPEL sm "
                     + "WHERE sm.MOTIF_ID = ? and sm.ACTIF = 1 order by 3 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idMotif);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -9991,7 +9772,7 @@ public class SQLDataService {
             String requete = "SELECT p.ID, p.S_MOTIF_ID, p.LIBELLE, p.DISCOURS, p.CONSIGNES, p.REPONSE, p.REGIME_CODE, p.ACTIF, p.DECISIONNEL "
                     + "FROM HOTLINE.POINT p WHERE p.S_MOTIF_ID = ? and p.ACTIF = 1 order by 3 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idSousMotif);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -10039,7 +9820,7 @@ public class SQLDataService {
             String requete = "SELECT sp.ID, sp.POINT_ID, sp.LIBELLE, sp.DISCOURS, sp.CONSIGNES, sp.REPONSE, sp.REGIME_CODE, sp.ACTIF, sp.DECISIONNEL "
                     + "FROM HOTLINE.SPOINT sp WHERE sp.POINT_ID = ? and sp.ACTIF = 1 order by 3 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idPoint);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -10096,9 +9877,9 @@ public class SQLDataService {
                 table = "HOTLINE.SPOINT";
             }
             requeteUpdate = "UPDATE " + table
-                    + " set CONSIGNES = ?, DISCOURS = ? WHERE ID = ?";
+                    + " set CONSIGNES = ?, DISCOURS = ?, ACTIF = 1 WHERE ID = ?";
 
-            stmt = conn.prepareStatement(requeteUpdate);
+            stmt = prepareStatement(conn, requeteUpdate);
             stmt.setString(1, nouvellesConsignes);
             stmt.setString(2, nouveauDiscours);
             stmt.setString(3, idNiveau);
@@ -10135,7 +9916,7 @@ public class SQLDataService {
                 table = "HOTLINE.SPOINT";
             }
             requeteUpdate = "UPDATE " + table + " set LIBELLE = ? WHERE ID = ?";
-            stmt = conn.prepareStatement(requeteUpdate);
+            stmt = prepareStatement(conn, requeteUpdate);
             stmt.setString(1, nouveauLibelle);
             stmt.setString(2, idNiveau);
             stmt.executeQuery();
@@ -10170,7 +9951,7 @@ public class SQLDataService {
 
             // On tente la suppression directe
             requeteDelete = "DELETE FROM HOTLINE.MOTIFAPPEL ma WHERE ma.ID = ?";
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             stmt.setString(1, idMotif);
             stmt.execute();
             stmt.clearParameters();
@@ -10182,40 +9963,40 @@ public class SQLDataService {
             try {
                 // MOTIF
                 requeteUpdate = "UPDATE HOTLINE.MOTIFAPPEL ma set ma.ACTIF = 0, ma.LIBELLE = ma.LIBELLE || '#' || ma.ID WHERE ma.ID = ?";
-                stmt = conn.prepareStatement(requeteUpdate);
+                stmt = prepareStatement(conn, requeteUpdate);
                 stmt.setString(1, idMotif);
                 stmt.execute();
                 stmt.clearParameters();
-                stmt.close();
+                closeStmtConn(stmt, null);
 
                 // SOUSMOTIF
                 requeteUpdate = "UPDATE HOTLINE.SMOTIFAPPEL sma set sma.ACTIF = 0, sma.LIBELLE = sma.LIBELLE || '#' || sma.ID WHERE sma.ID in "
                         + "( select sma.ID from hotline.smotifappel sma where sma.motif_id = ?  ) ";
-                stmt = conn.prepareStatement(requeteUpdate);
+                stmt = prepareStatement(conn, requeteUpdate);
                 stmt.setString(1, idMotif);
                 stmt.execute();
                 stmt.clearParameters();
-                stmt.close();
+                closeStmtConn(stmt, null);
 
                 // POINT
                 requeteUpdate = "UPDATE HOTLINE.POINT p set p.ACTIF = 0, p.LIBELLE = p.LIBELLE || '#' || p.ID WHERE p.ID in "
                         + "( select p.ID from hotline.motifappel ma, hotline.smotifappel sma, hotline.point p "
                         + "  where p.S_MOTIF_ID = sma.id and sma.motif_id = ma.id and ma.id = ?  ) ";
-                stmt = conn.prepareStatement(requeteUpdate);
+                stmt = prepareStatement(conn, requeteUpdate);
                 stmt.setString(1, idMotif);
                 stmt.execute();
                 stmt.clearParameters();
-                stmt.close();
+                closeStmtConn(stmt, null);
 
                 // SOUSPOINT
                 requeteUpdate = "UPDATE HOTLINE.SPOINT sp set sp.ACTIF = 0, sp.LIBELLE = sp.LIBELLE || '#' || sp.ID  WHERE sp.ID in "
                         + "( select sp.ID from hotline.motifappel ma, hotline.smotifappel sma, hotline.point p,  hotline.spoint sp "
                         + "  where sp.POINT_ID = p.ID and p.S_MOTIF_ID = sma.id and sma.motif_id = ma.id and ma.id = ?  ) ";
-                stmt = conn.prepareStatement(requeteUpdate);
+                stmt = prepareStatement(conn, requeteUpdate);
                 stmt.setString(1, idMotif);
                 stmt.execute();
                 stmt.clearParameters();
-                stmt.close();
+                closeStmtConn(stmt, null);
 
                 // TOUT OK
                 conn.commit();
@@ -10263,7 +10044,7 @@ public class SQLDataService {
 
             // On tente la suppression directe
             requeteDelete = "DELETE FROM HOTLINE.SMOTIFAPPEL sm WHERE sm.ID = ?";
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             stmt.setString(1, idSousMotif);
             stmt.execute();
             stmt.clearParameters();
@@ -10275,31 +10056,31 @@ public class SQLDataService {
             try {
                 // SOUSMOTIF
                 requeteUpdate = "UPDATE HOTLINE.SMOTIFAPPEL sma set sma.ACTIF = 0, sma.LIBELLE = sma.LIBELLE || '#' || sma.ID WHERE sma.ID = ?";
-                stmt = conn.prepareStatement(requeteUpdate);
+                stmt = prepareStatement(conn, requeteUpdate);
                 stmt.setString(1, idSousMotif);
                 stmt.execute();
                 stmt.clearParameters();
                 conn.commit();
-                stmt.close();
+                closeStmtConn(stmt, null);
 
                 // POINT
                 requeteUpdate = "UPDATE HOTLINE.POINT p set p.ACTIF = 0, p.LIBELLE = p.LIBELLE || '#' || p.ID WHERE p.ID in "
                         + "( select p.ID from hotline.point p where p.S_MOTIF_ID =  ?  ) ";
-                stmt = conn.prepareStatement(requeteUpdate);
+                stmt = prepareStatement(conn, requeteUpdate);
                 stmt.setString(1, idSousMotif);
                 stmt.execute();
                 stmt.clearParameters();
-                stmt.close();
+                closeStmtConn(stmt, null);
 
                 // SOUSPOINT
                 requeteUpdate = "UPDATE HOTLINE.SPOINT sp set sp.ACTIF = 0, sp.LIBELLE = sp.LIBELLE || '#' || sp.ID WHERE sp.ID in "
                         + "( select sp.ID from hotline.smotifappel sma, hotline.point p,  hotline.spoint sp "
                         + "  where sp.POINT_ID = p.ID and p.S_MOTIF_ID = sma.id and sma.id = ?  ) ";
-                stmt = conn.prepareStatement(requeteUpdate);
+                stmt = prepareStatement(conn, requeteUpdate);
                 stmt.setString(1, idSousMotif);
                 stmt.execute();
                 stmt.clearParameters();
-                stmt.close();
+                closeStmtConn(stmt, null);
 
                 // TOUT OK
                 conn.commit();
@@ -10347,7 +10128,7 @@ public class SQLDataService {
 
             // On tente la suppression directe
             requeteDelete = "DELETE FROM HOTLINE.POINT p WHERE p.ID = ?";
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             stmt.setString(1, idPoint);
             stmt.execute();
             stmt.clearParameters();
@@ -10359,7 +10140,7 @@ public class SQLDataService {
             try {
                 // POINT
                 requeteUpdate = "UPDATE HOTLINE.POINT p set p.ACTIF = 0, p.LIBELLE = p.LIBELLE || '#' || p.ID WHERE p.ID = ?";
-                stmt = conn.prepareStatement(requeteUpdate);
+                stmt = prepareStatement(conn, requeteUpdate);
                 stmt.setString(1, idPoint);
                 stmt.execute();
                 stmt.clearParameters();
@@ -10367,11 +10148,11 @@ public class SQLDataService {
                 // SOUSPOINT
                 requeteUpdate = "UPDATE HOTLINE.SPOINT sp set sp.ACTIF = 0, sp.LIBELLE = sp.LIBELLE || '#' || sp.ID WHERE sp.ID in "
                         + "( select sp.ID from hotline.spoint sp where sp.point_id = ?  ) ";
-                stmt = conn.prepareStatement(requeteUpdate);
+                stmt = prepareStatement(conn, requeteUpdate);
                 stmt.setString(1, idPoint);
                 stmt.execute();
                 stmt.clearParameters();
-                stmt.close();
+                closeStmtConn(stmt, null);
 
                 // TOUT OK
                 conn.commit();
@@ -10419,7 +10200,7 @@ public class SQLDataService {
             conn = getConnexion();
             conn.setAutoCommit(false);
 
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             stmt.setString(1, idSousPoint);
             stmt.execute();
             stmt.clearParameters();
@@ -10429,8 +10210,9 @@ public class SQLDataService {
         } catch (SQLException sqle) {
             LOGGER.info("supprimerSousPoint - Delete",sqle);
             try {
+            	closeStmtConn(stmt, null);
                 requeteUpdate = "UPDATE HOTLINE.SPOINT sp set sp.ACTIF = 0, sp.LIBELLE = sp.LIBELLE || '#' || sp.ID WHERE sp.ID = ?";
-                stmt = conn.prepareStatement(requeteUpdate);
+                stmt = prepareStatement(conn, requeteUpdate);
                 stmt.setString(1, idSousPoint);
                 stmt.execute();
                 stmt.clearParameters();
@@ -10475,7 +10257,7 @@ public class SQLDataService {
             conn = getConnexion();
 
             requete = "UPDATE HOTLINE.SMOTIFAPPEL sma SET sma.MAIL_RESILIATION = ? WHERE sma.ID = ?";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, mailResiliation);
             stmt.setString(2, idSousMotif);
             stmt.executeQuery();
@@ -10512,7 +10294,7 @@ public class SQLDataService {
             conn = getConnexion();
 
             requete = "UPDATE HOTLINE.POINT p SET p.MAIL_RESILIATION = ? WHERE p.ID = ?";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, mailResiliation);
             stmt.setString(2, idPoint);
             stmt.executeQuery();
@@ -10549,7 +10331,7 @@ public class SQLDataService {
             conn = getConnexion();
 
             requete = "UPDATE HOTLINE.SPOINT sp SET sp.MAIL_RESILIATION = ? WHERE sp.ID = ?";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, mailResiliation);
             stmt.setString(2, idSousPoint);
             stmt.executeQuery();
@@ -10577,7 +10359,7 @@ public class SQLDataService {
             conn = getConnexion();
 
             requete = "UPDATE HOTLINE.SMOTIFAPPEL sm SET sm.flux_transfert_client  = ? WHERE sm.ID = ?";
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, flux_transfert_client);
             stmt.setString(2, idSousMotif);
             stmt.executeQuery();
@@ -10618,8 +10400,7 @@ public class SQLDataService {
             }
         } finally {
             try {
-                cs.close();
-                conn.close();
+                closeStmtConn(cs, conn);
             } catch (Exception e) {
                 LOGGER.error(_AnoLiberationConn, e);
             }
@@ -10639,7 +10420,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.T_DOCUMENT_DOC";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
 
@@ -10678,7 +10459,7 @@ public class SQLDataService {
                     + "WHERE DOC_ID=?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, documentId);
 
             rs = stmt.executeQuery();
@@ -10722,7 +10503,7 @@ public class SQLDataService {
                     + "     AND mp.ID=dmp.DMP_MODPROC_ID";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, document.getId());
 
             rs = stmt.executeQuery();
@@ -10762,7 +10543,7 @@ public class SQLDataService {
             currentId = rs_currId.getString(1);
             
             String requeteInsert = "INSERT INTO HOTLINE.T_DOCUMENT_DOC( DOC_ID, DOC_LIBELLE, DOC_TYPE, DOC_DESC, DOC_FICHIER, DOC_DEBUT, DOC_FIN, DOC_CONTENU ) VALUES( ?, ?, ?, ?, ?, ?, ?, EMPTY_BLOB() )";
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
 
             stmt.setString(1, currentId);
             stmt.setString(2, leDocument.getLibelle());
@@ -10777,11 +10558,11 @@ public class SQLDataService {
                 stmt.setNull(7, java.sql.Types.DATE);
             }
             stmt.execute();
-            stmt.close();  
+            closeStmtConn(stmt, null);  
             
             String requeteGetBLOB = "SELECT DOC_CONTENU FROM HOTLINE.T_DOCUMENT_DOC " +
                     "WHERE DOC_ID = ? " ;
-            stmt = conn.prepareStatement(requeteGetBLOB);
+            stmt = prepareStatement(conn, requeteGetBLOB);
             stmt.setString(1, currentId);
             ResultSet rs_blob = stmt.executeQuery();
             rs_blob.next();
@@ -10791,9 +10572,9 @@ public class SQLDataService {
             InputStream is = leDocument.getFichier().getInputStream();
             ecrireFluxDansBlob(is, blob);
 
-            stmt.close();
+            closeStmtConn(stmt, null);
             
-            stmt = conn.prepareStatement("UPDATE HOTLINE.T_DOCUMENT_DOC SET (DOC_CONTENU) = ?  WHERE DOC_ID =  ? ");
+            stmt = prepareStatement(conn, "UPDATE HOTLINE.T_DOCUMENT_DOC SET (DOC_CONTENU) = ?  WHERE DOC_ID =  ? ");
             stmt.setBlob(1, blob);
             stmt.setString(2, currentId);
             
@@ -10840,7 +10621,7 @@ public class SQLDataService {
             conn = getConnexion();
             conn.setAutoCommit(false);
             
-            stmt = conn.prepareStatement(requeteUpdate);
+            stmt = prepareStatement(conn, requeteUpdate);
 
             stmt.setString(1, leDocument.getLibelle());
             stmt.setString(2, leDocument.getType());
@@ -10856,22 +10637,22 @@ public class SQLDataService {
             stmt.setString(7, leDocument.getId());
             stmt.executeQuery();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
             
             String requeteGetBLOB = "SELECT DOC_CONTENU FROM HOTLINE.T_DOCUMENT_DOC " +
                     "WHERE DOC_ID = ? " ;
-            stmt = conn.prepareStatement(requeteGetBLOB);
+            stmt = prepareStatement(conn, requeteGetBLOB);
             stmt.setString(1, leDocument.getId());
             ResultSet rs_blob = stmt.executeQuery();
             rs_blob.next();
             Blob blob = rs_blob.getBlob(1);
-            stmt.close();
+            closeStmtConn(stmt, null);
         
             //Ecriture dans le blob
             InputStream is = leDocument.getFichier().getInputStream();       
             ecrireFluxDansBlob(is, blob);
             
-            stmt = conn.prepareStatement("UPDATE HOTLINE.T_DOCUMENT_DOC SET (DOC_CONTENU) = ?  WHERE DOC_ID =  ? ");
+            stmt = prepareStatement(conn, "UPDATE HOTLINE.T_DOCUMENT_DOC SET (DOC_CONTENU) = ?  WHERE DOC_ID =  ? ");
             stmt.setBlob(1, blob);
             stmt.setString(2, leDocument.getId());
             
@@ -10904,7 +10685,7 @@ public class SQLDataService {
             String requeteDelete = "DELETE FROM HOTLINE.T_DOCUMENT_DOC WHERE DOC_ID=?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
 
             stmt.setString(1, leDocumentId );
             
@@ -10940,7 +10721,7 @@ public class SQLDataService {
                     + "WHERE ACG_SCE_ID=?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             
             stmt.setLong(1,Long.parseLong(unScenario.getID()));
             rs = stmt.executeQuery();
@@ -10986,7 +10767,7 @@ public class SQLDataService {
                             +"    AND MP.RECAP_CENTREGESTION = 1  ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             
             stmt.setLong(1,Long.parseLong(unScenario.getID()));
             rs = stmt.executeQuery();
@@ -11021,7 +10802,7 @@ public class SQLDataService {
 
             conn = getConnexion();
             conn.setAutoCommit(false);
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
 
             stmt.setString(1, uneAdresse.getSCENARIO_ID());
             stmt.setString(2, uneAdresse.getLIBELLE());
@@ -11061,7 +10842,7 @@ public class SQLDataService {
 
             conn = getConnexion();
             conn.setAutoCommit(false);
-            stmt = conn.prepareStatement(requeteUpate);
+            stmt = prepareStatement(conn, requeteUpate);
 
             stmt.setString(1, uneAdresse.getLIBELLE());
             stmt.setString(2, uneAdresse.getADRESSE());
@@ -11101,7 +10882,7 @@ public class SQLDataService {
 
             conn = getConnexion();
             conn.setAutoCommit(false);
-            stmt = conn.prepareStatement( requeteDelete );
+            stmt = prepareStatement(conn,  requeteDelete );
             stmt.setString(1, uneAdresse.getID());
             
             stmt.executeQuery();
@@ -11134,7 +10915,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.MODELE_PROCEDURE";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
 
@@ -11175,7 +10956,7 @@ public class SQLDataService {
 
             conn = getConnexion();
             conn.setAutoCommit(false);
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
 
             stmt.setString(1, leModeleProcedureMail.getLibelle());
             stmt.setString(2, leModeleProcedureMail.getType());
@@ -11189,12 +10970,12 @@ public class SQLDataService {
             
             stmt.executeQuery();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
             
             if( leModeleProcedureMail.getDocument()!= null ){
                 
                 requeteInsert = "INSERT INTO HOTLINE.T_DOCUMENT_MODELEPROC_DMP(DMP_MODPROC_ID, DMP_DOC_ID ) VALUES( hotline.seq_id_modprocedure.CURRVAL, ? )";
-                stmt = conn.prepareStatement(requeteInsert);
+                stmt = prepareStatement(conn, requeteInsert);
                 stmt.setString(1, leModeleProcedureMail.getDocument().getId());
                 stmt.executeUpdate();
             }
@@ -11227,7 +11008,7 @@ public class SQLDataService {
                     + "WHERE ID = ? ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteUpdate);
+            stmt = prepareStatement(conn, requeteUpdate);
 
             stmt.setString(1, leModeleProcedureMail.getLibelle());
             stmt.setString(2, leModeleProcedureMail.getType());
@@ -11243,17 +11024,17 @@ public class SQLDataService {
 
             stmt.executeUpdate();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
             
             requeteUpdate = "DELETE FROM HOTLINE.T_DOCUMENT_MODELEPROC_DMP WHERE DMP_MODPROC_ID=?";
-            stmt = conn.prepareStatement(requeteUpdate);
+            stmt = prepareStatement(conn, requeteUpdate);
             stmt.setString(1, leModeleProcedureMail.getId());
             stmt.executeUpdate();
             
             if( leModeleProcedureMail.getDocument()!= null ){
                 
                 String requeteInsert = "INSERT INTO HOTLINE.T_DOCUMENT_MODELEPROC_DMP(DMP_DOC_ID, DMP_MODPROC_ID) VALUES(?,?)";
-                stmt = conn.prepareStatement(requeteInsert);
+                stmt = prepareStatement(conn, requeteInsert);
                 stmt.setString(1, leModeleProcedureMail.getDocument().getId());
                 stmt.setString(2, leModeleProcedureMail.getId());
                 stmt.executeUpdate();
@@ -11286,7 +11067,7 @@ public class SQLDataService {
                     + "WHERE SCENARIO_ID = ? AND MODPROCEDURE_ID = ? ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
 
             stmt.setLong(1, Long.parseLong(leScenario.getID()));
             stmt.setLong(2, Long.parseLong(leModeleProcedureMail.getId()));
@@ -11320,7 +11101,7 @@ public class SQLDataService {
                     + "WHERE ID = ? ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
 
             stmt.setLong(1, Long.parseLong(leModeleProcedureMail.getId()));
 
@@ -11355,7 +11136,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.MODELE_PROCEDURE " + "WHERE ID=? ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setLong(1, Long.parseLong(leModeleProcedureMail.getId()));
 
@@ -11374,14 +11155,14 @@ public class SQLDataService {
                 result.setRecapAdherent(rs.getBoolean(8));
                 result.setRecapCentreGestion(rs.getBoolean(9));
                 rs.close();
-                stmt.close();
+                closeStmtConn(stmt, null);
                 
                 requete = "SELECT d.DOC_ID, d.DOC_LIBELLE  "
                         + "FROM HOTLINE.T_DOCUMENT_MODELEPROC_DMP md,"
                         + "     HOTLINE.T_DOCUMENT_DOC d "
                         + "WHERE md.DMP_MODPROC_ID=? "
                         + " AND d.DOC_ID = md.DMP_DOC_ID";
-               stmt = conn.prepareStatement(requete);
+               stmt = prepareStatement(conn, requete);
                stmt.setString(1, leModeleProcedureMail.getId());
                rs = stmt.executeQuery();
                if( rs.next() ){
@@ -11405,6 +11186,87 @@ public class SQLDataService {
             closeRsStmtConn(rs,stmt,conn);
         }
     }
+    
+	public static boolean ajouterScenario(Scenario leScenario) {
+
+		Connection conn = null;
+		PreparedStatement stmt = null;
+
+		if (StringUtils.isNotBlank(leScenario.getCAMPAGNE_ID())
+				&& StringUtils.isNotBlank(leScenario.getMUTUELLE_ID())) {
+
+			try {
+				String requeteInsert = "INSERT INTO HOTLINE.SCENARIO (MUTUELLE_ID, CAMPAGNE_ID, LIBELLE, CONSIGNES, DISCOURS) "
+						+ "VALUES(?, ?, ?, ?, ?)";
+
+				conn = getConnexion();
+				stmt = prepareStatement(conn, requeteInsert);
+
+				stmt.setLong(1, Long.parseLong(leScenario.getMUTUELLE_ID()));
+				stmt.setLong(2, Long.parseLong(leScenario.getCAMPAGNE_ID()));
+				stmt.setString(3, leScenario.getLIBELLE());
+				stmt.setString(4, leScenario.getCONSIGNES());
+				stmt.setString(5, leScenario.getDISCOURS());
+
+				int n = stmt.executeUpdate();
+				stmt.clearParameters();
+				conn.commit();
+				return n > 0;
+
+			} catch (Exception e) {
+				LOGGER.error("ajouterScenarioPEC", e);
+				try {
+					conn.rollback();
+				} catch (Exception sqle) {
+					LOGGER.error(_AnoRollBack, sqle);
+				}
+				return false;
+			} finally {
+				closeStmtConn(stmt, conn);
+			}
+		} else {
+			return false;
+		}
+	}
+	
+	public static boolean modifierScenario(Scenario leScenario) {
+
+		Connection conn = null;
+		PreparedStatement stmt = null;
+
+		if (StringUtils.isNotBlank(leScenario.getID())) {
+
+			try {
+				String requete = "UPDATE HOTLINE.SCENARIO SET LIBELLE = ?, CONSIGNES = ?, DISCOURS = ? WHERE ID = ? ";
+						
+				conn = getConnexion();
+				stmt = prepareStatement(conn, requete);
+				
+				stmt.setString(1, leScenario.getLIBELLE());
+				stmt.setString(2, leScenario.getCONSIGNES());
+				stmt.setString(3, leScenario.getDISCOURS());
+				stmt.setLong(4, Long.parseLong(leScenario.getID()));
+				
+				int n = stmt.executeUpdate();
+				stmt.clearParameters();
+				conn.commit();
+				return n > 0;
+
+			} catch (Exception e) {
+				LOGGER.error("ajouterScenarioPEC", e);
+				try {
+					conn.rollback();
+				} catch (Exception sqle) {
+					LOGGER.error(_AnoRollBack, sqle);
+				}
+				return false;
+			} finally {
+				closeStmtConn(stmt, conn);
+			}
+		} else {
+			return false;
+		}
+	}
 
     public static boolean ajouterScenarioPEC(Scenario leScenario,
             ModelePEC leModelePEC) {
@@ -11422,7 +11284,7 @@ public class SQLDataService {
                     + "VALUES( ?, ?, ?, ?, ?, ?, ? )";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
 
             stmt.setLong(1, Long.parseLong(leScenario.getID()));
             stmt.setLong(2, Long.parseLong(_evenement_pec_id));
@@ -11464,7 +11326,7 @@ public class SQLDataService {
                     + "VALUES( ?, ?, ?, ?, ?, ?, ?, ?, ? )";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
 
             stmt.setString(1, leModelePEC.getOperateur());
             stmt.setString(2, leModelePEC.getOrganisme());
@@ -11507,7 +11369,7 @@ public class SQLDataService {
                             +"WHERE s.entite_id = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setLong(1, Long.parseLong( lEntiteGestion.getId()) );
             rs = stmt.executeQuery();
@@ -11519,7 +11381,7 @@ public class SQLDataService {
             };
             if( present ){
                 requete = "UPDATE HOTLINE.T_SITEWEBENTITE_SWB s SET s.site=?, s.url=? WHERE s.entite_id = ?";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setString(1, lEntiteGestion.getSiteWeb().getTypeSite());
                 stmt.setString(2, lEntiteGestion.getSiteWeb().getUrl());
                 stmt.setLong(3, Long.parseLong( lEntiteGestion.getId()) );
@@ -11527,7 +11389,7 @@ public class SQLDataService {
             }
             else{
                 requete = "INSERT INTO HOTLINE.T_SITEWEBENTITE_SWB(ENTITE_ID,SITE,URL) VALUES(?,?,?)";
-                stmt = conn.prepareStatement(requete);
+                stmt = prepareStatement(conn, requete);
                 stmt.setLong(1, Long.parseLong( lEntiteGestion.getId()) );
                 stmt.setString(2, lEntiteGestion.getSiteWeb().getTypeSite());
                 stmt.setString(3, lEntiteGestion.getSiteWeb().getUrl());
@@ -11562,7 +11424,7 @@ public class SQLDataService {
                     + "FOURNISSEUR_PERMIS=? " + "WHERE ID=?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteUpdate);
+            stmt = prepareStatement(conn, requeteUpdate);
 
             stmt.setString(1, leModelePEC.getOperateur());
             stmt.setString(2, leModelePEC.getOrganisme());
@@ -11602,7 +11464,7 @@ public class SQLDataService {
             String requete = "DELETE FROM HOTLINE.MODELE_PEC WHERE ID=?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setLong(1, Long.parseLong(leModelePEC.getId()));
 
@@ -11639,7 +11501,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.MODELE_PEC " + "WHERE ID=?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setLong(1, Long.parseLong(leModelePEC.getId()));
 
@@ -11682,7 +11544,7 @@ public class SQLDataService {
                     + "WHERE SCENARIO_ID = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
 
             stmt.setLong(1, Long.parseLong(_evenement_pec_id));
             stmt.setBoolean(2, leModelePEC.getEmissionFax());
@@ -11716,7 +11578,7 @@ public class SQLDataService {
                     + "WHERE SCENARIO_ID = ? AND MODELEPEC_ID = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             stmt.setLong(1, Long.parseLong(leScenario.getID()));
             stmt.setLong(2, Long.parseLong(leModelePEC.getId()));
             stmt.executeQuery();
@@ -11727,7 +11589,7 @@ public class SQLDataService {
                     + "WHERE SCENARIO_ID = ? AND MODELEPEC_ID = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteDelete);
+            stmt = prepareStatement(conn, requeteDelete);
             stmt.setLong(1, Long.parseLong(leScenario.getID()));
             stmt.setLong(2, Long.parseLong(leModelePEC.getId()));
             stmt.executeQuery();
@@ -11757,7 +11619,7 @@ public class SQLDataService {
         try {
             String requeteInsert = "INSERT INTO HOTLINE.MOTIFAPPEL (SCENARIO_ID, LIBELLE) VALUES(?,?)";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
             stmt.setString(1, idScenario);
             stmt.setString(2, libelleMotif);
             stmt.executeQuery();
@@ -11786,7 +11648,7 @@ public class SQLDataService {
         try {
             String requeteInsert = "INSERT INTO HOTLINE.SMOTIFAPPEL (MOTIF_ID, LIBELLE, REFERENCE_ID) VALUES(?,?,?)";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
             stmt.setString(1, idMotif);
             stmt.setString(2, libelleSousMotif);
             stmt.setString(3, idReferenceStatistique);
@@ -11815,7 +11677,7 @@ public class SQLDataService {
         try {
             String requeteInsert = "INSERT INTO HOTLINE.SMOTIFAPPEL (MOTIF_ID, LIBELLE, REFERENCE_ID, REGIME_CODE) VALUES(?,?,?,?)";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
             stmt.setString(1, idMotif);
             stmt.setString(2, libelle.trim());
             stmt.setString(3, sousMotifRef.getRstId());
@@ -11845,7 +11707,7 @@ public class SQLDataService {
         try {
             String requeteInsert = "INSERT INTO HOTLINE.POINT (S_MOTIF_ID, LIBELLE) VALUES(?,?)";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
             stmt.setString(1, idSousMotif);
             stmt.setString(2, libellePoint);
             stmt.executeQuery();
@@ -11874,7 +11736,7 @@ public class SQLDataService {
         try {
             String requeteInsert = "INSERT INTO HOTLINE.SPOINT (POINT_ID, LIBELLE) VALUES(?,?)";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
             stmt.setString(1, idPoint);
             stmt.setString(2, libelleSousPoint);
             stmt.executeQuery();
@@ -11901,7 +11763,7 @@ public class SQLDataService {
         try {
             String requeteInsert = "UPDATE HOTLINE.MOTIFAPPEL moa SET moa.LIBELLE = ? WHERE moa.ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
             stmt.setString(1, libelleMotif);
             stmt.setString(2, idMotif);
             stmt.executeQuery();
@@ -11929,7 +11791,7 @@ public class SQLDataService {
         try {
             String requeteUpdate = "UPDATE HOTLINE.SMOTIFAPPEL smoa SET smoa.LIBELLE = ?, smoa.REFERENCE_ID = ? WHERE smoa.ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteUpdate);
+            stmt = prepareStatement(conn, requeteUpdate);
             stmt.setString(1, libelleSousMotif);
             stmt.setString(2, idReferenceStatistique);
             stmt.setString(3, idSousMotif);
@@ -11957,7 +11819,7 @@ public class SQLDataService {
         try {
             String requeteUpdate = "UPDATE HOTLINE.SMOTIFAPPEL smoa SET smoa.LIBELLE = ?, smoa.REFERENCE_ID = ?, smoa.REGIME_CODE = ? WHERE smoa.ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteUpdate);
+            stmt = prepareStatement(conn, requeteUpdate);
             stmt.setString(1, libelle);
             stmt.setString(2, sousMotifRef.getRstId());
             stmt.setString(3, sousMotifRef.getId());
@@ -11987,7 +11849,7 @@ public class SQLDataService {
         try {
             String requeteInsert = "UPDATE HOTLINE.POINT p SET p.LIBELLE = ? WHERE p.ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
             stmt.setString(1, libellePoint);
             stmt.setString(2, idPoint);
             stmt.executeQuery();
@@ -12015,7 +11877,7 @@ public class SQLDataService {
         try {
             String requeteInsert = "UPDATE HOTLINE.SPOINT sp SET sp.LIBELLE = ? WHERE sp.ID = ?";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requeteInsert);
+            stmt = prepareStatement(conn, requeteInsert);
             stmt.setString(1, libelleSousPoint);
             stmt.setString(2, idSousPoint);
             stmt.executeQuery();
@@ -12052,7 +11914,7 @@ public class SQLDataService {
                     + "and a.MOTIF_ID = moa.ID(+) "
                     + "and a.S_MOTIF_ID = sma.ID(+)";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 unDisplay = new Appel();
@@ -12099,11 +11961,11 @@ public class SQLDataService {
                 int taille_tableau = ids_fiches_a_delocker.length;
                 requeteUpdate = "UPDATE HOTLINE.APPEL a SET a.EDITIONENCOURS = 0, a.EDITEUR_ID = null, a.DATEEDITION = null WHERE a.ID = ?";
                 for (int i = 0; i < taille_tableau; i++) {
-                    stmt = conn.prepareStatement(requeteUpdate);
+                    stmt = prepareStatement(conn, requeteUpdate);
                     stmt.setString(1, ids_fiches_a_delocker[i]);
                     stmt.executeQuery();
                     stmt.clearParameters();
-                    stmt.close();
+                    closeStmtConn(stmt, null);
                 }
             }
 
@@ -12140,7 +12002,7 @@ public class SQLDataService {
 
             conn = getConnexion();
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, teleacteur_id);
             stmt.setString(2, id_appel);
             rs = stmt.executeQuery();
@@ -12181,7 +12043,7 @@ public class SQLDataService {
 
             conn = getConnexion();
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, id_appel);
             stmt.setString(2, teleacteur_id);
             rs = stmt.executeQuery();
@@ -12223,7 +12085,7 @@ public class SQLDataService {
                     + "SET e.STATUT_ID=? "
                     + "WHERE e.STATUT_ID=? AND e.APPEL_ID=? AND SOUSMOTIF_ID=?";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, statut_annule);
             stmt.setString(2, statut_attente);
             stmt.setString(3, appel_id);
@@ -12264,7 +12126,7 @@ public class SQLDataService {
             conn = getConnexion();
             conn.setAutoCommit(false);
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, _StatutAnnule);
             stmt.setString(2, _StatutAttente);
             stmt.setString(3, appel_id);
@@ -12308,7 +12170,7 @@ public class SQLDataService {
 
             conn = getConnexion();
             conn.setAutoCommit(false);
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, statut_envoi_en_attente);
             stmt.setString(2, statut_attente);
             stmt.setString(3, appel_id);
@@ -12353,7 +12215,7 @@ public class SQLDataService {
 
             conn = getConnexion();
             conn.setAutoCommit(false);
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, statut_envoi_en_attente);
             stmt.setString(2, statut_attente);
             stmt.setString(3, appel_id);
@@ -12399,7 +12261,7 @@ public class SQLDataService {
             conn = getConnexion();
             conn.setAutoCommit(false);
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, code_cloture_souhaite);
             stmt.setString(2, (String) daf.get(CrmForms._teleacteur_id));
             stmt.setString(3, (String) daf.get(CrmForms._mutuelle_id));
@@ -12427,9 +12289,8 @@ public class SQLDataService {
 
     }
 
-    public static StringBuilder cloturerFicheAppelEnClotureOuEnAppelSortant(
-            String appel_id, String code_cloture_souhaite, Boolean resolu,
-            DynaActionForm daf, HttpSession session) {
+    public static StringBuilder cloturerFicheAppelEnClotureOuEnAppelSortant(String appel_id, String code_cloture_souhaite, 
+    		Boolean resolu, DynaActionForm daf, HttpSession session) {
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -12439,14 +12300,14 @@ public class SQLDataService {
         try {
             String requete = "";
 
-            ObjetAppelant objet_appelant = (ObjetAppelant) session
-                    .getAttribute(FicheAppelAction._var_session_objet_appelant);
+            ObjetAppelant objet_appelant = (ObjetAppelant) session.getAttribute(FicheAppelAction._var_session_objet_appelant);
             Object objet = objet_appelant.getObjet();
 
             String code_appelant_preselectionne = "";
             String entite_gestion_id = "";
             String appelant_id = "";
             String beneficiaire_id = "";
+            String benef_appelant_id = "";
             String beneficiaire_qualite = "";
             String adherent_id = "";
             String etablissement_id = "";
@@ -12473,25 +12334,22 @@ public class SQLDataService {
             }
 
             if (objet instanceof Beneficiaire) {
-                Beneficiaire beneficiaire = (Beneficiaire) objet_appelant
-                        .getObjet();
+                Beneficiaire beneficiaire = (Beneficiaire) objet_appelant.getObjet();
                 if (beneficiaire != null) {
                     etablissement_id = beneficiaire.getETABLISSEMENT_ID();
                     entite_gestion_id = beneficiaire.getENTITE_GESTION_ID();
                     beneficiaire_id = beneficiaire.getID();
+                    benef_appelant_id = beneficiaire.getID();
                     adherent_id = beneficiaire.getAdherentId();
                     beneficiaire_qualite = beneficiaire.getQualite();
-                    code_appelant_preselectionne = (String) daf
-                            .get("appelant_code");
+                    code_appelant_preselectionne = (String) daf.get("appelant_code");
                 }
             } else if (objet instanceof Etablissement) {
-                Etablissement etablissement = (Etablissement) objet_appelant
-                        .getObjet();
+                Etablissement etablissement = (Etablissement) objet_appelant.getObjet();
                 if (etablissement != null) {
                     etablissement_id = etablissement.getID();
                     entite_gestion_id = etablissement.getENTITE_GESTION_ID();
-                    code_appelant_preselectionne = (String) daf
-                            .get(CrmForms._appelant_code);
+                    code_appelant_preselectionne = (String) daf.get(CrmForms._appelant_code);
                 }
             } else {
                 Appelant appelant = (Appelant) objet_appelant.getObjet();
@@ -12500,19 +12358,32 @@ public class SQLDataService {
                     code_appelant_preselectionne = appelant.getTYPE_CODE();
                 }
             }
+            
+        	Beneficiaire beneficiaire = (Beneficiaire) session.getAttribute(FicheAppelAction._var_session_beneficiaire_aux);
+            if (beneficiaire != null) {
+                if (StringUtils.isBlank(etablissement_id)) {
+                	etablissement_id = beneficiaire.getETABLISSEMENT_ID();
+                }
+                if (StringUtils.isBlank(entite_gestion_id)) {
+                	entite_gestion_id = beneficiaire.getENTITE_GESTION_ID();
+                }
+                beneficiaire_id = beneficiaire.getID();
+                adherent_id = beneficiaire.getAdherentId();
+                beneficiaire_qualite = beneficiaire.getQualite();
+            }
 
             requete = "UPDATE HOTLINE.APPEL a "
                     + "set a.CLOTURE_CODE = ?, a.DATECLOTURE = SYSDATE, a.CLOTUREUR_ID = ?, a.MUTUELLE_ID = ?, a.EDITIONENCOURS = 0, a.EDITEUR_ID = null,  "
                     + "a.MOTIF_ID = ?, a.S_MOTIF_ID = ?, a.POINT_ID = ?, a.S_POINT_ID = ?, a.APPELANT_ID = ?, a.BENEFICIAIRE_ID = ?, "
                     + "a.BENEFICIAIRE_QUALITE = ?, a.ADHERENT_ID = ?, a.NUMERORAPPEL = ?, a.DATERAPPEL = ?, a.PERIODERAPPEL_CODE = ?, "
                     + "a.COMMENTAIRE = ?, a.SATISFACTION_CODE = ?, a.TRAITEMENTURGENT = ?, a.ENTITEGESTION_ID = ?, a.ETABLISSEMENT_ID = ?, "
-                    + "a.CODEAPPELANT_SELECTIONNE = ?, a.RECLAMATION = ?, a.TRANSFERTS = ?, a.RESOLU=? "
+                    + "a.CODEAPPELANT_SELECTIONNE = ?, a.RECLAMATION = ?, a.TRANSFERTS = ?, a.RESOLU=?, a.APPELANT_BENEFICIAIRE_ID = ? "
                     + "WHERE a.ID = ?";
 
             conn = getConnexion();
             conn.setAutoCommit(false);
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setString(1, code_cloture_souhaite);
             stmt.setString(2, (String) daf.get(CrmForms._teleacteur_id));
@@ -12537,8 +12408,9 @@ public class SQLDataService {
             stmt.setString(21, (String) daf.get(CrmForms._reclamation));
             stmt.setString(22, (String) daf.get(CrmForms._destinataire_transfert));
             stmt.setBoolean(23, resolu);
+            stmt.setString(24, benef_appelant_id);
 
-            stmt.setString(24, appel_id);
+            stmt.setString(25, appel_id);
 
             stmt.execute();
 
@@ -12647,7 +12519,7 @@ public class SQLDataService {
             conn = getConnexion();
             conn.setAutoCommit(false);
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             stmt.setString(1, code_cloture_souhaite);
             stmt.setString(2, (String) daf.get(CrmForms._mutuelle_id));
@@ -12775,7 +12647,7 @@ public class SQLDataService {
             conn = getConnexion();
             conn.setAutoCommit(false);
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             
             stmt.clearParameters();
             stmt.setString(1, (String) daf.get(CrmForms._teleacteur_id));
@@ -12928,37 +12800,37 @@ public class SQLDataService {
             conn = getConnexion();
             conn.setAutoCommit(false);
 
-            stmt = conn.prepareStatement(requete_sequences);
+            stmt = prepareStatement(conn, requete_sequences);
             rs = stmt.executeQuery();
             rs.next();
             String SQ_COURRIER_LOT_NEXTVAL = rs.getString(1);
             String SQ_COURRIER_GROUPE_LOT_NEXTVAL = rs.getString(2);
             String SQ_COURRIER_N_DOCUMENT_ID_NEXTVAL = rs.getString(3);
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
             rs.close();
 
             String extension = "PDF";
 
             // Création d'un BLOB vide
             String requete_insert_blob = "INSERT INTO GED.DVS_MASTER_IMAGE(N_DOCUMENT_ID, BL_MASTER_IMAGE, C_MIME) VALUES (?, EMPTY_BLOB(), ?)";
-            stmt = conn.prepareStatement(requete_insert_blob);
+            stmt = prepareStatement(conn, requete_insert_blob);
 
             stmt.setString(1, SQ_COURRIER_N_DOCUMENT_ID_NEXTVAL);
             stmt.setString(2, extension);
             stmt.execute();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // Récupération du BLOB vide
-            stmt = conn.prepareStatement("SELECT BL_MASTER_IMAGE FROM GED.DVS_MASTER_IMAGE WHERE N_DOCUMENT_ID = ?");
+            stmt = prepareStatement(conn, "SELECT BL_MASTER_IMAGE FROM GED.DVS_MASTER_IMAGE WHERE N_DOCUMENT_ID = ?");
             stmt.setString(1, SQ_COURRIER_N_DOCUMENT_ID_NEXTVAL);
             rs = stmt.executeQuery();
             rs.next();
             Blob blob = rs.getBlob(1);
             
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // Ecriture dans le BLOB vide
             InputStream is = new FileInputStream(fichier);
@@ -12966,12 +12838,12 @@ public class SQLDataService {
 
             // UPADTE du BLOB vide
 
-            stmt = conn.prepareStatement("UPDATE GED.DVS_MASTER_IMAGE SET (BL_MASTER_IMAGE) = ? WHERE N_DOCUMENT_ID = ?");
+            stmt = prepareStatement(conn, "UPDATE GED.DVS_MASTER_IMAGE SET (BL_MASTER_IMAGE) = ? WHERE N_DOCUMENT_ID = ?");
             stmt.setBlob(1, blob);
             stmt.setString(2, SQ_COURRIER_N_DOCUMENT_ID_NEXTVAL);
             stmt.executeUpdate();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // INSERTION DANS GED.COURRIER
             stmt = conn
@@ -13031,7 +12903,7 @@ public class SQLDataService {
                     + "?, ?, ?, ?, ?, ?, ?, ?, ?,"
                     + "?, ?, ?, ?, ?, ?, ?, ? ) ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, (String) daf.get(CrmForms._teleacteur_id));
             stmt.setString(2, (String) daf.get(CrmForms._mutuelle_id));
             stmt.setString(3, entite_gestion_id);
@@ -13098,27 +12970,27 @@ public class SQLDataService {
             conn = getConnexion();
             conn.setAutoCommit(false);
 
-            stmt = conn.prepareStatement(requete_sequences);
+            stmt = prepareStatement(conn, requete_sequences);
             rs = stmt.executeQuery();
             rs.next();
             String SQ_COURRIER_LOT_NEXTVAL = rs.getString(1);
             String SQ_COURRIER_GROUPE_LOT_NEXTVAL = rs.getString(2);
             String SQ_COURRIER_N_DOCUMENT_ID_NEXTVAL = rs.getString(3);
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
             rs.close();
 
             String extension = "PDF";
 
             // Création d'un BLOB vide
             String requete_insert_blob = "INSERT INTO GED.DVS_MASTER_IMAGE(N_DOCUMENT_ID, BL_MASTER_IMAGE, C_MIME) VALUES (?, EMPTY_BLOB(), ?)";
-            stmt = conn.prepareStatement(requete_insert_blob);
+            stmt = prepareStatement(conn, requete_insert_blob);
 
             stmt.setString(1, SQ_COURRIER_N_DOCUMENT_ID_NEXTVAL);
             stmt.setString(2, extension);
             stmt.execute();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // Récupération du BLOB vide
             stmt = conn
@@ -13130,7 +13002,7 @@ public class SQLDataService {
             Blob blob = rs.getBlob(1);
              
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // Ecriture dans le BLOB vide
             InputStream is = new FileInputStream(fichier);
@@ -13144,7 +13016,7 @@ public class SQLDataService {
             stmt.setString(2, SQ_COURRIER_N_DOCUMENT_ID_NEXTVAL);
             stmt.executeUpdate();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // INSERTION DANS GED.COURRIER
             stmt = conn
@@ -13201,7 +13073,7 @@ public class SQLDataService {
             stmt.execute();
             stmt.clearParameters();
             
-            stmt = conn.prepareStatement("UPDATE EVENEMENT.EVENEMENT e SET COURRIER_ID = ? WHERE ID=?");
+            stmt = prepareStatement(conn, "UPDATE EVENEMENT.EVENEMENT e SET COURRIER_ID = ? WHERE ID=?");
             stmt.setString(1, SQ_COURRIER_LOT_NEXTVAL);
             stmt.setString(2, evt.getID());
             stmt.executeUpdate();
@@ -13322,27 +13194,27 @@ public class SQLDataService {
             conn = getConnexion();
             conn.setAutoCommit(false);
 
-            stmt = conn.prepareStatement(requete_sequences);
+            stmt = prepareStatement(conn, requete_sequences);
             rs = stmt.executeQuery();
             rs.next();
             String SQ_COURRIER_LOT_NEXTVAL = rs.getString(1);
             String SQ_COURRIER_GROUPE_LOT_NEXTVAL = rs.getString(2);
             String SQ_COURRIER_N_DOCUMENT_ID_NEXTVAL = rs.getString(3);
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
             rs.close();
 
             String extension = "PDF";
 
             // Création d'un BLOB vide
             String requete_insert_blob = "INSERT INTO GED.DVS_MASTER_IMAGE(N_DOCUMENT_ID, BL_MASTER_IMAGE, C_MIME) VALUES (?, EMPTY_BLOB(), ?)";
-            stmt = conn.prepareStatement(requete_insert_blob);
+            stmt = prepareStatement(conn, requete_insert_blob);
 
             stmt.setString(1, SQ_COURRIER_N_DOCUMENT_ID_NEXTVAL);
             stmt.setString(2, extension);
             stmt.execute();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // Récupération du BLOB vide
             stmt = conn
@@ -13354,7 +13226,7 @@ public class SQLDataService {
             Blob blob = rs.getBlob(1);
             
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // Ecriture dans le BLOB vide
             InputStream is = new FileInputStream(fichier);
@@ -13362,12 +13234,12 @@ public class SQLDataService {
 
             // UPADTE du BLOB vide
 
-            stmt = conn.prepareStatement("UPDATE GED.DVS_MASTER_IMAGE SET (BL_MASTER_IMAGE) = ? WHERE N_DOCUMENT_ID = ?");
+            stmt = prepareStatement(conn, "UPDATE GED.DVS_MASTER_IMAGE SET (BL_MASTER_IMAGE) = ? WHERE N_DOCUMENT_ID = ?");
             stmt.setBlob(1, blob);
             stmt.setString(2, SQ_COURRIER_N_DOCUMENT_ID_NEXTVAL);
             stmt.executeUpdate();
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
 
             // INSERTION DANS GED.COURRIER
             stmt = conn
@@ -13424,7 +13296,7 @@ public class SQLDataService {
                     + "?, ?, ?, ?, ?, ?, ?, ?, ?,"
                     + "?, ?, ?, ?, ?, ?, ?, ? ) ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, (String) daf.get(CrmForms._teleacteur_id));
             stmt.setString(2, (String) daf.get(CrmForms._mutuelle_id));
             stmt.setString(3, entite_gestion_id);
@@ -13490,7 +13362,7 @@ public class SQLDataService {
                     + "AND e.MOTIF_ID = motif.ID(+) AND e.SOUSMOTIF_ID = sous_motif.ID(+) "
                     + "AND e.STATUT_ID = statut.ID(+) AND e.SOUS_STATUT_ID = sous_statut.ID(+)  ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idEvenement);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -13612,55 +13484,37 @@ public class SQLDataService {
                     + ") "
                     + "left outer join GED.T_COURRIERS_ORIGINE_TCO tco on (COU.TCO_ID = TCO.ID) WHERE e.ID = ? ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idEvenement);
             rs = stmt.executeQuery();
-            if(rs.next()) {
-                unDisplay = new ComplementsInfosEvenement();
+			if (rs.next()) {
+				unDisplay = new ComplementsInfosEvenement();
 
-                unDisplay.setLOT((rs.getString(1) != null) ? rs.getString(1)
-                        : "");
-                unDisplay.setTCO_ID((rs.getString(2) != null) ? rs.getString(2)
-                        : "");
-                unDisplay.setFLAG_HISTO((rs.getString(3) != null) ? rs
-                        .getString(3) : "");
-                unDisplay.setDATE_INSERTION((rs.getTimestamp(4) != null) ? rs
-                        .getTimestamp(4) : null);
-                unDisplay
-                        .setDATE_IDENTIFICATION((rs.getTimestamp(5) != null) ? rs
-                                .getTimestamp(5) : null);
+				unDisplay.setLOT((rs.getString(1) != null) ? rs.getString(1) : "");
+				unDisplay.setTCO_ID((rs.getString(2) != null) ? rs.getString(2) : "");
+				unDisplay.setFLAG_HISTO((rs.getString(3) != null) ? rs.getString(3) : "");
+				unDisplay.setDATE_INSERTION((rs.getTimestamp(4) != null) ? rs.getTimestamp(4) : null);
+				unDisplay.setDATE_IDENTIFICATION((rs.getTimestamp(5) != null) ? rs.getTimestamp(5) : null);
 
-                unDisplay.setDATE_TRAITEMENT((rs.getTimestamp(6) != null) ? rs
-                        .getTimestamp(6) : null);
-                unDisplay
-                        .setDATE_RECEPTION_POSTE((rs.getTimestamp(7) != null) ? rs
-                                .getTimestamp(7) : null);
-                unDisplay.setORIGINAL((rs.getString(8) != null) ? rs
-                        .getString(8) : "");
-                unDisplay.setUSERSCAN((rs.getString(9) != null) ? rs
-                        .getString(9) : "");
-                unDisplay.setUSERIDENTIF((rs.getString(10) != null) ? rs
-                        .getString(10) : "");
-                unDisplay.setUSERTRAIT((rs.getString(11) != null) ? rs
-                        .getString(11) : "");
+				unDisplay.setDATE_TRAITEMENT((rs.getTimestamp(6) != null) ? rs.getTimestamp(6) : null);
+				unDisplay.setDATE_RECEPTION_POSTE((rs.getTimestamp(7) != null) ? rs.getTimestamp(7) : null);
+				unDisplay.setORIGINAL((rs.getString(8) != null) ? rs.getString(8) : "");
+				unDisplay.setUSERSCAN((rs.getString(9) != null) ? rs.getString(9) : "");
+				unDisplay.setUSERIDENTIF((rs.getString(10) != null) ? rs.getString(10) : "");
+				unDisplay.setUSERTRAIT((rs.getString(11) != null) ? rs.getString(11) : "");
 
-                unDisplay.setEXPEDITEUR((rs.getString(12) != null) ? rs
-                        .getString(12) : "");
-                unDisplay.setSUJET((rs.getString(13) != null) ? rs
-                        .getString(13) : "");
-                unDisplay.setCC((rs.getString(14) != null) ? rs.getString(14)
-                        : "");
-                unDisplay.setDESTINATAIRE((rs.getString(15) != null) ? rs
-                        .getString(15) : "");
-                unDisplay.setCourrierOrigine((rs.getString(16) != null) ? rs
-                        .getString(16) : "");
-                rs.close();
-            }
+				unDisplay.setEXPEDITEUR((rs.getString(12) != null) ? rs.getString(12) : "");
+				unDisplay.setSUJET((rs.getString(13) != null) ? rs.getString(13) : "");
+				unDisplay.setCC((rs.getString(14) != null) ? rs.getString(14) : "");
+				unDisplay.setDESTINATAIRE((rs.getString(15) != null) ? rs.getString(15) : "");
+				unDisplay.setCourrierOrigine((rs.getString(16) != null) ? rs.getString(16) : "");
+				rs.close();
+			}
             else{
                 return null;
             }
             stmt.clearParameters();
-            stmt.close();
+            closeStmtConn(stmt, null);
             
             // Blobs associés :
             // - si FLAG_HISTO = 0 alors table = GED.DVS_MASTER_IMAGE dvs
@@ -13668,7 +13522,7 @@ public class SQLDataService {
 
             if (!_FAUX.equals(unDisplay.getFLAG_HISTO())) {
                 // connexion à la base histo
-                conn.close();
+                closeStmtConn(stmt, conn);
                 conn = SQLDataService.getConnexionBaseHisto();
             }
 
@@ -13678,7 +13532,7 @@ public class SQLDataService {
                     + "ORDER by COU.PAGE ASC";
 
             
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, unDisplay.getLOT());
             rs = stmt.executeQuery();
 
@@ -13781,7 +13635,7 @@ public class SQLDataService {
             String requete = "SELECT me.ID, me.LIBELLE, me.FICHIER, me.REPERTOIRE, me.FONCTION "
                     + "FROM HOTLINE.T_MODELE_EDITION me " + "WHERE me.ID = ? ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idModele);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -13895,7 +13749,7 @@ public class SQLDataService {
                     + "    and a.id = e.createur_id ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idPec);
             rs = stmt.executeQuery();
             if (rs.next()) {
@@ -14008,7 +13862,7 @@ public class SQLDataService {
                         + "    and pec.beneficiaire_id = benef.id(+) "
                         + "    and benef.personne_id = pbenef.id(+)";
 
-                stmt = conn.prepareStatement(requeteBis);
+                stmt = prepareStatement(conn, requeteBis);
                 stmt.setString(1, idPec);
                 rs = stmt.executeQuery();
                 if (rs.next()) {
@@ -14127,7 +13981,7 @@ public class SQLDataService {
                 + "where e.id = ?";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idPec);
             rs = stmt.executeQuery();
             if (rs.next()) {
@@ -14195,7 +14049,7 @@ public class SQLDataService {
                     + "WHERE COU.LOT = ? AND cou.N_DOCUMENT_ID = dvs.N_DOCUMENT_ID "
                     + "ORDER by COU.PAGE ASC";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, unDisplay.getLotGED() );
             rs = stmt.executeQuery();
             
@@ -14239,7 +14093,7 @@ public class SQLDataService {
                     + "FROM GED.COURRIER cou, GED.DVS_MASTER_IMAGE dvs "
                     + "WHERE COU.LOT = ? AND cou.N_DOCUMENT_ID = dvs.N_DOCUMENT_ID "
                     + "ORDER by COU.PAGE ASC";
-            stmtDoc = conn.prepareStatement(requeteDoc);
+            stmtDoc = prepareStatement(conn, requeteDoc);
             
             String requeteEvt = "select " 
                     + "a.nom                                          , "  
@@ -14292,7 +14146,7 @@ public class SQLDataService {
                 + "left outer join application.beneficiaire ben on ben.id = e.beneficiaire_id "
                 + "left outer join application.personne pben on pben.id = ben.personne_id  " 
                 + "where e.appel_id = ? and e.jdoclass = ?";
-            stmtEvt = conn.prepareStatement(requeteEvt);
+            stmtEvt = prepareStatement(conn, requeteEvt);
             
             stmtEvt.setString(1, idAppel);
             stmtEvt.setString(2,_PecDemande);
@@ -14406,7 +14260,7 @@ public class SQLDataService {
                     + "AND pec.MUTUELLE_ID = mut.ID(+) "
                     + "AND pec.ID = DETAILPEC.IPC_EVE_ID(+)";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idPec);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -14562,7 +14416,7 @@ public class SQLDataService {
                     + "AND prs_prenom not in ('SUPERVISEUR', 'RABAT') "
                     + "AND PRS.PRS_ACTIF = 1 order by 2 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 unDisplay = new LibelleCode();
@@ -14599,7 +14453,7 @@ public class SQLDataService {
                     + "AND TELEEG.ENTITEGESTION_ID = EG.ID "
                     + "AND EG.MUTUELLE_ID = mut.id " + "order by 2 asc";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, teleacteur_id);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -14633,7 +14487,7 @@ public class SQLDataService {
                     + "FROM application.mutuelle mut "
                     + "ORDER BY 2 ASC";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             rs = stmt.executeQuery();
             while (rs.next()) {
                 unDisplay = new Mutuelle();
@@ -14653,8 +14507,7 @@ public class SQLDataService {
         }
     }
     
-    public static Collection<LigneExcel> getStatistiquesFichesAppels(
-            Map<String, String> criteres) {
+    public static Collection<LigneExcel> getStatistiquesFichesAppels(Map<String, String> criteres) {
         // N'afficher que les fiches sur lesquelles le teleacteurs est habilité
         // Exclure RABAT
 
@@ -14674,36 +14527,40 @@ public class SQLDataService {
             String DATEDEBUT = (String) criteres.get("DATEDEBUT");
             String DATEFIN = (String) criteres.get("DATEFIN");
             String RESOLU = (String) criteres.get("RESOLU");
+            String CAMPAGNE_ID = (String) criteres.get("CAMPAGNE_ID");
             
             
             String filtre_site = " and TCREAT.SITE = ? ";
             String filtre_client = " and mut.ID = ? ";
             String filtre_reference = " and smoa.REFERENCE_ID = ? ";
-            String filtre_createur = " and a.CREATEUR_ID = ? ";
+            String filtre_createur = " and a.CREATEUR_ID IN (" + CREATEUR_ID + ") ";
             String filtre_statut = " and a.CLOTURE_CODE = ? ";
             String filtre_date_fin = " and trunc(a.DATEAPPEL) <= trunc(to_date(?,'dd/mm/YYYY')) ";
             String filtre_resolu_oui = " and a.RESOLU = '1' ";
             String filtre_resolu_non = " and a.RESOLU = '0' ";
+            String filtre_campagne = " and a.CAMPAGNE_ID IN (" + CAMPAGNE_ID + ") ";
             
             StringBuilder requete_globale = new StringBuilder();
 
             /* ASSURE : HABILITATIONS SUR EG */
-            requete_globale
-                    .append("SELECT TCREAT.SITE as SITE, MUT.LIBELLE as client, rst.rst_libelle AS typefiche, "
+            requete_globale.append(
+            		"SELECT TCREAT.SITE as SITE, MUT.LIBELLE as client, rst.rst_libelle AS typefiche, "
                             + " cod_type_appelant.LIBELLE as TYPEAPPELANT, prs.nom || ' ' || prs.prenom AS NOMAPPELANT, ben.code AS CODEAPPELANT, a.dateappel, a.datecloture, "
                             + " tcreat.NOM || ' ' || tcreat.PRENOM AS createur, tclot.NOM || ' ' || tclot.prenom AS clotureur, "
                             + " cod_cloture.libelle AS statut, a.ID, DECODE(a.resolu,1,'oui',0,'non','?') resolu, a.commentaire,moa.libelle as motif,smoa.libelle as smotif "
-                            +" ,eg.libelle as lib_entite_gestion "
+                            + " ,eg.libelle as lib_entite_gestion, camp.LIBELLE CAMPAGNE, "
+                            + " prs.nom || ' ' || prs.prenom NOMBEN, ben.code AS CODEBEN, a.BENEFICIAIRE_QUALITE QUALITE, "
+                            + " cod_cloture.ALIAS CODE_STATUT, prs_appelant.nom NOM_BEN_APPELANT, prs_appelant.prenom PRENOM_BEN_APPELANT, ben_appelant.code CODE_BEN_APPELANT "
                             + "FROM hotline.appel a, hotline.teleacteur tcreat, hotline.teleacteur tclot, hotline.codes cod_cloture, "
                             + " application.mutuelle mut, application.beneficiaire ben, application.personne prs, "
                             + " hotline.codes cod_type_appelant, hotline.teleacteurentitegestion teg, "
-                           + " application.ENTITE_GESTION eg, "
-                            + " hotline.smotifappel smoa, hotline.motifappel moa,evenement.t_refs_stats_rst rst "
-                            + "WHERE a.codeappelant_selectionne = cod_type_appelant.code "
+                            + " application.ENTITE_GESTION eg, application.beneficiaire ben_appelant, application.personne prs_appelant, "
+                            + " hotline.smotifappel smoa, hotline.motifappel moa,evenement.t_refs_stats_rst rst, hotline.campagne camp "
+                            + "WHERE a.codeappelant_selectionne = cod_type_appelant.code and a.CAMPAGNE_ID = camp.ID "
                             + " AND cod_type_appelant.alias = 'ASSURE' AND a.beneficiaire_id = ben.ID(+) "
                             + " AND BEN.PERSONNE_ID = prs.id(+) AND a.mutuelle_id = mut.ID AND a.cloture_code = cod_cloture.code "
                             + " AND a.createur_id = tcreat.ID AND A.CLOTUREUR_ID = tclot.ID(+) AND teg.entitegestion_id = a.ENTITEGESTION_ID "
-                            + " and a.ENTITEGESTION_ID = eg.id(+) "
+                            + " and a.ENTITEGESTION_ID = eg.id(+) and a.APPELANT_BENEFICIAIRE_ID = ben_appelant.ID(+) AND ben_appelant.PERSONNE_ID = prs_appelant.id(+)"
                             + " AND teg.teleacteur_id = ? AND a.s_motif_id = smoa.ID(+) AND a.motif_id = moa.ID(+) AND smoa.reference_id = rst.rst_id(+) "
                             + " AND tcreat.SITE <> 'RABAT' AND TRUNC (a.dateappel) >= TRUNC (TO_DATE (?, 'dd/mm/yyyy'))");
 
@@ -14717,7 +14574,7 @@ public class SQLDataService {
             if (!"".equals(REFERENCE_ID)) {
                 requete_globale.append(filtre_reference);
             }
-            if (!"".equals(CREATEUR_ID)) {
+            if (CREATEUR_ID != null && !"".equals(CREATEUR_ID)) {
                 requete_globale.append(filtre_createur);
             }
             if (!"".equals(STATUT_ID)) {
@@ -14732,25 +14589,31 @@ public class SQLDataService {
             else if ("0".equals(RESOLU)) {
                 requete_globale.append(filtre_resolu_non);
             }
+            if (CAMPAGNE_ID != null && !"".equals(CAMPAGNE_ID)) {
+                requete_globale.append(filtre_campagne);
+            }
             
             requete_globale.append(" UNION ALL ");
 
             /* ENTREPRISE : HABILITATIONS SUR EG */
             requete_globale
                     .append("select TCREAT.SITE as SITE, MUT.LIBELLE as client, rst.rst_libelle AS typefiche, "
-                            + "cod_type_appelant.LIBELLE as TYPEAPPELANT, ETAB.LIBELLE AS NOMAPPELANT, NULL AS CODEAPPELANT, a.dateappel, a.datecloture, "
+                            + "cod_type_appelant.LIBELLE as TYPEAPPELANT, ETAB.LIBELLE AS NOMAPPELANT, SIRET AS CODEAPPELANT, a.dateappel, a.datecloture, "
                             + "tcreat.NOM || ' ' || tcreat.PRENOM AS createur, tclot.NOM || ' ' || tclot.prenom AS clotureur, "
                             + "cod_cloture.libelle AS statut, a.ID, DECODE(a.resolu,1,'oui',0,'non','?') resolu, a.commentaire,moa.libelle as motif,smoa.libelle as smotif "
-                             + ",eg.libelle as lib_entite_gestion "
+                            + ",eg.libelle as lib_entite_gestion, camp.LIBELLE CAMPAGNE, "
+                            + " prs.nom || ' ' || prs.prenom NOMBEN, ben.code AS CODEBEN, a.BENEFICIAIRE_QUALITE QUALITE, "
+                            + " cod_cloture.ALIAS CODE_STATUT, ' ' NOM_BEN_APPELANT, ' ' PRENOM_BEN_APPELANT, ' ' CODE_BEN_APPELANT "
                             + "FROM hotline.appel a, hotline.teleacteur tcreat, hotline.teleacteur tclot, hotline.codes cod_cloture, "
                             + "application.mutuelle mut, application.etablissement etab, "
                             + "hotline.codes cod_type_appelant, hotline.teleacteurentitegestion teg, "
-                            + " application.ENTITE_GESTION eg, "
+                            + " application.ENTITE_GESTION eg, application.beneficiaire ben, application.personne prs,"
                             + "hotline.smotifappel smoa, evenement.t_refs_stats_rst rst, "
-                            + "hotline.motifappel moa "
-                            + "WHERE a.codeappelant_selectionne = cod_type_appelant.code "
+                            + "hotline.motifappel moa, hotline.campagne camp "
+                            + "WHERE a.codeappelant_selectionne = cod_type_appelant.code and a.CAMPAGNE_ID = camp.ID "
                             + "AND cod_type_appelant.alias = 'ENTREPRISE' "
                             + "AND a.ETABLISSEMENT_ID = etab.ID(+) AND a.mutuelle_id = mut.ID "
+                            + "AND a.beneficiaire_id = ben.ID(+) AND BEN.PERSONNE_ID = prs.id(+) "
                             + "AND a.cloture_code = cod_cloture.code "
                             + "AND a.createur_id = tcreat.ID "
                             + "AND A.CLOTUREUR_ID = tclot.ID(+) "
@@ -14772,7 +14635,7 @@ public class SQLDataService {
             if (!"".equals(REFERENCE_ID)) {
                 requete_globale.append(filtre_reference);
             }
-            if (!"".equals(CREATEUR_ID)) {
+            if (CREATEUR_ID != null && !"".equals(CREATEUR_ID)) {
                 requete_globale.append(filtre_createur);
             }
             if (!"".equals(STATUT_ID)) {
@@ -14787,6 +14650,9 @@ public class SQLDataService {
             else if ("0".equals(RESOLU)) {
                 requete_globale.append(filtre_resolu_non);
             }
+            if (CAMPAGNE_ID != null && !"".equals(CAMPAGNE_ID)) {
+                requete_globale.append(filtre_campagne);
+            }
             
             
             requete_globale.append(" UNION ALL ");
@@ -14795,19 +14661,23 @@ public class SQLDataService {
             requete_globale
                     .append("select TCREAT.SITE as SITE, MUT.LIBELLE as client, rst.rst_libelle AS typefiche, "
                             + "cod_type_appelant.LIBELLE as TYPEAPPELANT, app.NOM || ' ' || app.PRENOM || ' ' || APP.ETABLISSEMENT_RS AS NOMAPPELANT, "
-                            + "APP.CODEADHERENT as CODEAPPELANT, a.dateappel, a.datecloture, tcreat.NOM || ' ' || tcreat.PRENOM AS createur, "
+                            + "APP.NUMFINESS as CODEAPPELANT, a.dateappel, a.datecloture, tcreat.NOM || ' ' || tcreat.PRENOM AS createur, "
                             + "tclot.NOM || ' ' || tclot.prenom AS clotureur, cod_cloture.libelle AS statut, a.ID, DECODE(a.resolu,1,'oui',0,'non','?') resolu,a.commentaire,moa.libelle as motif,smoa.libelle as smotif  "
-                            + ",'AUCUNE' as lib_entite_gestion "
+                            + ", eg.libelle as lib_entite_gestion, camp.LIBELLE CAMPAGNE, "
+                            + " prs.nom || ' ' || prs.prenom NOMBEN, ben.code AS CODEBEN, a.BENEFICIAIRE_QUALITE QUALITE, "
+                            + " cod_cloture.ALIAS CODE_STATUT, ' ' NOM_BEN_APPELANT, ' ' PRENOM_BEN_APPELANT, ' ' CODE_BEN_APPELANT "
                             + "FROM hotline.appel a, hotline.teleacteur tcreat, hotline.teleacteur tclot, hotline.codes cod_cloture, "
-                            + "application.mutuelle mut, hotline.appelant app , "
-                            + "hotline.codes cod_type_appelant, HOTLINE.TELEACTEURCAMPAGNE tc, hotline.CAMPMUT cm, "
+                            + "application.mutuelle mut, hotline.appelant app , application.beneficiaire ben, application.personne prs, "
+                            + "hotline.codes cod_type_appelant, HOTLINE.TELEACTEURCAMPAGNE tc, hotline.CAMPMUT cm, application.ENTITE_GESTION eg, "
                             + "hotline.smotifappel smoa, evenement.t_refs_stats_rst rst, "
-                            + "hotline.motifappel moa "
+                            + "hotline.motifappel moa, hotline.campagne camp "
                             + "WHERE a.codeappelant_selectionne IS NOT NULL AND a.codeappelant_selectionne = cod_type_appelant.code(+) "
                             + "AND (cod_type_appelant.code IS NULL OR cod_type_appelant.ALIAS NOT IN ('ASSURE', 'ENTREPRISE')) "
-                            + "and A.APPELANT_ID = app.ID(+) AND a.cloture_code = cod_cloture.code "
+                            + "and A.APPELANT_ID = app.ID(+) AND a.cloture_code = cod_cloture.code and a.CAMPAGNE_ID = camp.ID "
                             + "AND a.createur_id = tcreat.ID AND A.CLOTUREUR_ID = tclot.ID(+) "
+                            + "AND a.beneficiaire_id = ben.ID(+) AND BEN.PERSONNE_ID = prs.id(+) "
                             + "and A.MUTUELLE_ID = mut.id and A.CAMPAGNE_ID = CM.CAMPAGNE_ID "
+                            + "AND a.ENTITEGESTION_ID = eg.id(+) "
                             + "AND tc.CAMPAGNE_ID = cm.CAMPAGNE_ID AND cm.MUTUELLE_ID = a.MUTUELLE_ID "
                             + "AND a.s_motif_id = smoa.ID(+) AND a.motif_id = moa.ID(+) "
                             + "AND tc.TELEACTEUR_ID = ? AND smoa.reference_id = rst.rst_id(+) AND tcreat.SITE <> 'RABAT' "
@@ -14823,7 +14693,7 @@ public class SQLDataService {
             if (!"".equals(REFERENCE_ID)) {
                 requete_globale.append(filtre_reference);
             }
-            if (!"".equals(CREATEUR_ID)) {
+            if (CREATEUR_ID != null && !"".equals(CREATEUR_ID)) {
                 requete_globale.append(filtre_createur);
             }
             if (!"".equals(STATUT_ID)) {
@@ -14838,6 +14708,9 @@ public class SQLDataService {
             else if ("0".equals(RESOLU)) {
                 requete_globale.append(filtre_resolu_non);
             }
+            if (CAMPAGNE_ID != null && !"".equals(CAMPAGNE_ID)) {
+                requete_globale.append(filtre_campagne);
+            }
             
             // AJOUT
             requete_globale.append(" UNION ALL ");
@@ -14848,13 +14721,16 @@ public class SQLDataService {
                             + "NULL as TYPEAPPELANT, null AS NOMAPPELANT, "
                             + "null as CODEAPPELANT, a.dateappel, a.datecloture, tcreat.NOM || ' ' || tcreat.PRENOM AS createur, "
                             + "tclot.NOM || ' ' || tclot.prenom AS clotureur, cod_cloture.libelle AS statut, a.ID, DECODE(a.resolu,1,'oui',0,'non','?') resolu, a.commentaire,moa.libelle as motif,smoa.libelle as smotif  "
-                            + ",'AUCUNE' as lib_entite_gestion "
+                            + ", ' ' as lib_entite_gestion, camp.LIBELLE CAMPAGNE, "
+                            + " prs.nom || ' ' || prs.prenom NOMBEN, ben.code AS CODEBEN, a.BENEFICIAIRE_QUALITE QUALITE, "
+                            + " cod_cloture.ALIAS CODE_STATUT, ' ' NOM_BEN_APPELANT, ' ' PRENOM_BEN_APPELANT, ' ' CODE_BEN_APPELANT "
                             + "FROM hotline.appel a, hotline.teleacteur tcreat, hotline.teleacteur tclot, hotline.codes cod_cloture, "
                             + "application.mutuelle mut, HOTLINE.TELEACTEURCAMPAGNE tc, hotline.CAMPMUT cm, "
                             + "hotline.smotifappel smoa, evenement.t_refs_stats_rst rst, "
-                            + "hotline.motifappel moa "
-                            + "WHERE a.codeappelant_selectionne is null "
+                            + "hotline.motifappel moa, hotline.campagne camp, application.beneficiaire ben, application.personne prs "
+                            + "WHERE a.codeappelant_selectionne is null and a.CAMPAGNE_ID = camp.ID "
                             + "AND a.mutuelle_id = mut.ID AND a.cloture_code = cod_cloture.code "
+                            + "AND a.beneficiaire_id = ben.ID(+) AND BEN.PERSONNE_ID = prs.id(+) "
                             + "AND a.createur_id = tcreat.ID AND A.CLOTUREUR_ID = tclot.ID(+) "
                             + "and A.CAMPAGNE_ID = CM.CAMPAGNE_ID "
                             + "AND tc.CAMPAGNE_ID = cm.CAMPAGNE_ID AND cm.MUTUELLE_ID = a.MUTUELLE_ID "
@@ -14872,7 +14748,7 @@ public class SQLDataService {
             if (!"".equals(REFERENCE_ID)) {
                 requete_globale.append(filtre_reference);
             }
-            if (!"".equals(CREATEUR_ID)) {
+            if (CREATEUR_ID != null && !"".equals(CREATEUR_ID)) {
                 requete_globale.append(filtre_createur);
             }
             if (!"".equals(STATUT_ID)) {
@@ -14887,12 +14763,15 @@ public class SQLDataService {
             else if ("0".equals(RESOLU)) {
                 requete_globale.append(filtre_resolu_non);
             }
+            if (CAMPAGNE_ID != null && !"".equals(CAMPAGNE_ID)) {
+                requete_globale.append(filtre_campagne);
+            }
             
             // AJOUT
             requete_globale.append(" ORDER BY ID DESC ");
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete_globale.toString());
+            stmt = prepareStatement(conn, requete_globale.toString());
 
             int compteur_bind = 1;
 
@@ -14916,12 +14795,7 @@ public class SQLDataService {
                 if (!"".equals(REFERENCE_ID)) {
                     stmt.setString(compteur_bind, REFERENCE_ID);
                     compteur_bind++;
-                }
-
-                if (!"".equals(CREATEUR_ID)) {
-                    stmt.setString(compteur_bind, CREATEUR_ID);
-                    compteur_bind++;
-                }
+                }                
 
                 if (!"".equals(STATUT_ID)) {
                     stmt.setString(compteur_bind, STATUT_ID);
@@ -14932,7 +14806,6 @@ public class SQLDataService {
                     stmt.setString(compteur_bind, DATEFIN);
                     compteur_bind++;
                 }
-     
             }
 
             rs = stmt.executeQuery();
@@ -14945,48 +14818,43 @@ public class SQLDataService {
             		throw new Exception("Nombre de résultats trop important ! Impossible de charger le tableau");
             	}
             	
-                unDisplay = new LigneExcel();
+				unDisplay = new LigneExcel();
 
-                unDisplay.setSITE((rs.getString(1) != null) ? rs.getString(1)
-                        : "");
-                unDisplay.setCLIENT((rs.getString(2) != null) ? rs.getString(2)
-                        : "");
-                unDisplay.setTYPEFICHE((rs.getString(3) != null) ? rs
-                        .getString(3) : "");
-                unDisplay.setTYPEAPPELANT((rs.getString(4) != null) ? rs
-                        .getString(4) : "");
-                unDisplay.setNOMAPPELANT((rs.getString(5) != null) ? rs
-                        .getString(5) : "");
-                unDisplay.setCODE_APPELANT((rs.getString(6) != null) ? rs
-                        .getString(6) : "");
-
-                unDisplay.setDATE_APPEL((rs.getTimestamp(7) != null) ? rs
-                        .getTimestamp(7) : null);
-                unDisplay.setDATE_CLOTURE((rs.getTimestamp(8) != null) ? rs
-                        .getTimestamp(8) : null);
-
-                unDisplay.setCREATEUR((rs.getString(9) != null) ? rs
-                        .getString(9) : "");
-                unDisplay.setCLOTUREUR((rs.getString(10) != null) ? rs
-                        .getString(10) : "");
-
-                unDisplay.setSTATUT((rs.getString(11) != null) ? rs
-                        .getString(11) : "");
-                unDisplay.setIDFICHE((rs.getString(12) != null) ? rs
-                        .getString(12) : "");
-
-                unDisplay.setRESOLU((rs.getString(13) != null) ? rs
-                        .getString(13) : "");
-                
-                unDisplay.setCOMMENTAIRE((rs.getString(14) != null) ? rs
-                        .getString(14) : "");
-                unDisplay.setMotif((rs.getString(15) != null) ? rs
-                        .getString(15) : "");
-                unDisplay.setSous_motif((rs.getString(16) != null) ? rs
-                        .getString(16) : "");
-                unDisplay.setLib_entite_gestion((rs.getString(17) != null) ? rs
-                        .getString(17) : "");
-                res.add(unDisplay);
+				unDisplay.setSITE((rs.getString(1) != null) ? rs.getString(1) : "");
+				unDisplay.setCLIENT((rs.getString(2) != null) ? rs.getString(2) : "");
+				unDisplay.setTYPEFICHE((rs.getString(3) != null) ? rs.getString(3) : "");
+				unDisplay.setTYPEAPPELANT((rs.getString(4) != null) ? rs.getString(4) : "");
+				unDisplay.setNOMAPPELANT((rs.getString(5) != null) ? rs.getString(5) : "");
+				unDisplay.setCODE_APPELANT((rs.getString(6) != null) ? rs.getString(6) : "");
+				unDisplay.setDATE_APPEL((rs.getTimestamp(7) != null) ? rs.getTimestamp(7) : null);
+				unDisplay.setDATE_CLOTURE((rs.getTimestamp(8) != null) ? rs.getTimestamp(8) : null);
+				unDisplay.setCREATEUR((rs.getString(9) != null) ? rs.getString(9) : "");
+				unDisplay.setCLOTUREUR((rs.getString(10) != null) ? rs.getString(10) : "");
+				unDisplay.setSTATUT((rs.getString(11) != null) ? rs.getString(11) : "");				
+				unDisplay.setIDFICHE((rs.getString(12) != null) ? rs.getString(12) : "");
+				unDisplay.setRESOLU((rs.getString(13) != null) ? rs.getString(13) : "");
+				unDisplay.setCOMMENTAIRE((rs.getString(14) != null) ? rs.getString(14) : "");
+				unDisplay.setMotif((rs.getString(15) != null) ? rs.getString(15) : "");
+				unDisplay.setSous_motif((rs.getString(16) != null) ? rs.getString(16) : "");
+				unDisplay.setLib_entite_gestion((rs.getString(17) != null) ? rs.getString(17) : "");
+				unDisplay.setCampagne((rs.getString(18) != null) ? rs.getString(18) : "");
+				unDisplay.setNomben((rs.getString(19) != null) ? rs.getString(19) : "");
+				unDisplay.setCodeben((rs.getString(20) != null) ? rs.getString(20) : "");
+				unDisplay.setQualite((rs.getString(21) != null) ? rs.getString(21) : "");
+				
+				String codeStatut = rs.getString("CODE_STATUT");
+				String libelleStatut = BackOfficeService.libellePourCode(codeStatut);
+				if (StringUtils.isNotBlank(libelleStatut)) {
+					unDisplay.setSTATUT(libelleStatut);
+				}
+				String nomBenefAppelant = rs.getString("NOM_BEN_APPELANT");
+				if (StringUtils.isNotBlank(nomBenefAppelant)) {
+					nomBenefAppelant += " " + rs.getString("PRENOM_BEN_APPELANT");
+					unDisplay.setNOMAPPELANT(nomBenefAppelant);
+					unDisplay.setCODE_APPELANT(rs.getString("CODE_BEN_APPELANT"));
+				}
+				
+				res.add(unDisplay);
             }
             stmt.clearParameters();
             return res;
@@ -15017,7 +14885,7 @@ public class SQLDataService {
                     + "AND ACT.ACT_LIB = 'TRAITEMENT' "
                     + "AND AM.ID = ? ORDER BY 2 asc";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, mutuelle_id);
 
             rs = stmt.executeQuery();
@@ -15094,7 +14962,7 @@ public class SQLDataService {
             conn = getConnexion();
             conn.setAutoCommit(false);
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, teleacteur_id);
             stmt.setString(2, mutuelle_id);
             stmt.setString(3, adherent_id);
@@ -15148,7 +15016,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.PARAMETRAGE p "
                     + "WHERE  p.CLE = 'NUM_VERSION_HCONTACTS' ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -15166,7 +15034,7 @@ public class SQLDataService {
         }
     }
 
-    public static StringBuilder getTransfertsForInputSelect() {
+    public static StringBuilder getTransfertsForInputSelect(String idCampagne) {
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -15174,34 +15042,46 @@ public class SQLDataService {
         StringBuilder sb = new StringBuilder();
 
         try {
-
+        	
+        	sb.append("<TABLE width='100%'>");
+        	
+        	conn = getConnexion();
+        	
             String requete = "SELECT tra.TRA_LIBELLE, tra.TRA_EMAIL "
-                    + "FROM HOTLINE.T_TRANSFERTS_TRA tra " + "order by 1 ASC";
-	//requete = "SELECT tra.TRA_LIBELLE, tra.TRA_EMAIL FROM HOTLINE.T_TRANSFERTS_TRA tra where tra_id=1021 order by 1 ASC";
-
-            conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
-
+            		+ "FROM HOTLINE.T_TRANSFERTS_TRA tra LEFT JOIN HOTLINE.T_TRANSFERTCAMPAGNE_TCA tca " 
+            		+ "ON tra.TRA_ID = tca.TCA_TRA_ID "
+            		+ "WHERE (tca.TCA_CAMPAGNE_ID = ? OR tca.TCA_CAMPAGNE_ID IS NULL) "
+            		+ "ORDER BY 1 ASC";
+            stmt = prepareStatement(conn, requete);
+            stmt.setString(1, idCampagne);
             rs = stmt.executeQuery();
-
-            sb.append("<TABLE width='100%'>");
+            boolean trouve = false;
 
             while (rs.next()) {
-                sb.append("<TR>");
-                sb.append("<TD width='1px' nowrap='nowrap'><input type='checkbox' name='ckb_transfert' value='"
-                        + rs.getString(2) + "'></TD>");
-                sb.append("<TD nowrap='nowrap' class='noir11'>"
-                        + rs.getString(1) + "</TD>");
-                sb.append("<TD nowrap='nowrap' class='noir11'>"
-                        + rs.getString(2) + "</TD>");
-                sb.append("</TR>");
-
+            	trouve = true;
+                sb.append(construireLigneTransfert(rs));
             }
-
-            sb.append("</TABLE>");
-
             stmt.clearParameters();
+            
+            if (!trouve) {
+            	rs.close();
+            	closeStmtConn(stmt, null);
+            	requete = "SELECT tra.TRA_LIBELLE, tra.TRA_EMAIL "
+                        + "FROM HOTLINE.T_TRANSFERTS_TRA tra " 
+                		+ "WHERE tra.TRA_ID NOT IN ("
+                		+ "   SELECT tca.TCA_TRA_ID FROM HOTLINE.T_TRANSFERTCAMPAGNE_TCA tca ) "
+                		+ "ORDER BY 1 ASC";
+                stmt = prepareStatement(conn, requete);
+                rs = stmt.executeQuery();
+                while (rs.next()) {
+                	trouve = true;
+                    sb.append(construireLigneTransfert(rs));
+                }
+            }
+            
+            sb.append("</TABLE>");            
             return sb;
+            
         } catch (Exception e) {
             LOGGER.error("getTransfertsForInputSelect", e);
             return null;
@@ -15209,6 +15089,19 @@ public class SQLDataService {
             closeRsStmtConn(rs,stmt,conn);
         }
     }
+    
+	private static StringBuilder construireLigneTransfert(ResultSet rs) throws Exception {
+
+		StringBuilder sb = new StringBuilder();
+		sb.append("<TR>");
+		sb.append("<TD width='1px' nowrap='nowrap'><input type='checkbox' name='ckb_transfert' value='" + rs.getString(2) + "'></TD>");
+		sb.append("<TD nowrap='nowrap' class='noir11'>" + rs.getString(1) + "</TD>");
+		sb.append("<TD nowrap='nowrap' class='noir11'>" + rs.getString(2) + "</TD>");
+		sb.append("</TR>");
+
+		return sb;
+	}
+    
     public static StringBuilder getTransfertsForInputSelectMSG() {
 
         Connection conn = null;
@@ -15223,7 +15116,7 @@ public class SQLDataService {
 	//requete = "SELECT tra.TRA_LIBELLE, tra.TRA_EMAIL FROM HOTLINE.T_TRANSFERTS_TRA tra order by 1 ASC";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
 
             rs = stmt.executeQuery();
 
@@ -15268,7 +15161,7 @@ public class SQLDataService {
                     + "FROM HOTLINE.APPELANT app " + "WHERE app.ID = ? ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, etablissement_hospitalier_id);
 
             rs = stmt.executeQuery();
@@ -15348,6 +15241,7 @@ public class SQLDataService {
             ObjetAppelant objet_appelant = (ObjetAppelant) request.getSession()
                     .getAttribute(FicheAppelAction._var_session_objet_appelant);
             Object objet = objet_appelant.getObjet();
+            Beneficiaire beneficiaire_aux = (Beneficiaire) request.getSession().getAttribute(FicheAppelAction._var_session_beneficiaire_aux);
 
             String createur_id = ""; 
             String mutuelle_id = "";
@@ -15395,8 +15289,13 @@ public class SQLDataService {
             mutuelle_id = mutuelle.getId();
             appel_id = appel.getID();
 
-            if (objet instanceof Beneficiaire) {
-                Beneficiaire beneficiaire = (Beneficiaire) objet;
+            if (objet instanceof Beneficiaire || beneficiaire_aux != null) {
+            	Beneficiaire beneficiaire;
+            	if (beneficiaire_aux != null) {
+            		beneficiaire = beneficiaire_aux;
+            	} else {
+            		beneficiaire = (Beneficiaire) objet;
+            	}
                 adherent_id = beneficiaire.getAdherentId();
                 beneficiaire_id = beneficiaire.getID();
                 personne_id = beneficiaire.getPERSONNE_ID();
@@ -15470,7 +15369,7 @@ public class SQLDataService {
                     + "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
                     + "?,?,?,?,?,?)";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             
             stmt.setString(1, createur_id);
             stmt.setString(2, mutuelle_id);
@@ -15663,7 +15562,7 @@ public class SQLDataService {
                     + "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
                     + "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " + "?, ?, ?, ?)";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, createur_id);
             stmt.setString(2, mutuelle_id);
 
@@ -15771,7 +15670,7 @@ public class SQLDataService {
                     + " ?, ?, ? , ?, ?, "
                     + " ?, ?, ?, ?, ? ," + " ?, ?, ?, ?, ?, " + " ? )";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setLong(1, evenementId);
 
             stmt.setString(2, (String) request.getParameter("nom_adherent"));
@@ -15942,7 +15841,7 @@ public class SQLDataService {
             String requete = "SELECT e.ID, e.JDOCLASS, e.COURRIER_ID "
                     + "FROM EVENEMENT.EVENEMENT e " + "WHERE e.APPEL_ID = ? ";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, appe_id);
 
             rs = stmt.executeQuery();
@@ -15989,7 +15888,7 @@ public class SQLDataService {
                     + "and prs.prs_id = psp.psp_prs_id(+) AND psp.psp_srv_id = srv.srv_id(+) AND psp.psp_pol_id = pol.pol_id(+) "
                     + "and t.ID = tc.TELEACTEUR_ID AND tc.CAMPAGNE_ID = ? ORDER BY 3 ASC, 4 ASC";
 
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, campagne_id);
 
             sb.append("<table cellpadding='4' cellspacing='0' class='m_table' width='100%'border='1'>");
@@ -16078,7 +15977,7 @@ public class SQLDataService {
             requete.append("order by 3 desc, 1 asc ");
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete.toString());
+            stmt = prepareStatement(conn, requete.toString());
             stmt.setString(1, idEtablissement);
             stmt.setString(2, idEtablissement);
 
@@ -16124,7 +16023,7 @@ public class SQLDataService {
                     + "and CGAO.RISQUE_OPTION_ID = RO.ID and RO.RISQUE_ID = R.ID order by 1, 2");
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete.toString());
+            stmt = prepareStatement(conn, requete.toString());
             stmt.setString(1, detail_contrat_etablissement_id);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -16171,7 +16070,7 @@ public class SQLDataService {
             requete.append("where cbo.contrat_beneficiaire_id = ?  and cbo.risque_option_id = ro.id and ro.risque_id = r.id and r.produit_id = p.id order by 2 asc, 4 asc ");
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete.toString());
+            stmt = prepareStatement(conn, requete.toString());
             stmt.setString(1, id_contrat_beneficiaire);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -16211,7 +16110,7 @@ public class SQLDataService {
                     + "from application.contrat_etablissement ce, application.etablissement e "
                     + "where ce.etablissement_id = e.id and CE.id = ? ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idContratEtablissement);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -16242,7 +16141,7 @@ public class SQLDataService {
                     + "where CA.CONTRAT_GROUPEASSURE_ID = CGA.ID and CGA.CONTRAT_ETABLISSEMENT_ID = CE.ID"
                     + " and CE.ETABLISSEMENT_ID = E.ID and ca.id = ? ";
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idContratAdherent);
             rs = stmt.executeQuery();
             while (rs.next()) {
@@ -16285,7 +16184,7 @@ public class SQLDataService {
                     + "group by rollup(APPLICATION.PS_GETETATCONTRATBENEF(contben.id))";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idContratEtablissement);
 
             rs = stmt.executeQuery();
@@ -16322,7 +16221,7 @@ public class SQLDataService {
         	        	
         	requete="select LIBELLE  from APPLICATION.ENTITE_GESTION where id=?";
         	            conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, identitegestion);
 
             rs = stmt.executeQuery();
@@ -16377,7 +16276,7 @@ public class SQLDataService {
 
             
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idContratAdherent);
 
             rs = stmt.executeQuery();
@@ -16426,7 +16325,7 @@ public class SQLDataService {
                     + "group by cga.code ";
 
             conn = getConnexion();
-            stmt = conn.prepareStatement(requete);
+            stmt = prepareStatement(conn, requete);
             stmt.setString(1, idContratEtablissement);
             stmt.setString(2, actif_ou_pas);
 

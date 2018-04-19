@@ -31,6 +31,7 @@ public class Appel {
 
     String CODEAPPELANT_SELECTIONNE = "";
     String BENEFICIAIRE_ID = "";
+    String BENEF_APPELANT_ID = "";
     String BENEFICIAIRE_QUALITE = "";
     String ADHERENT_ID = "";
     String ETABLISSEMENT_ID = "";
@@ -529,5 +530,19 @@ public class Appel {
     public void setTRANSFERTS(String tRANSFERTS) {
         TRANSFERTS = tRANSFERTS;
     }
+
+	/**
+	 * @return the aPPELANT_BENEF_ID
+	 */
+	public String getBENEF_APPELANT_ID() {
+		return BENEF_APPELANT_ID;
+	}
+
+	/**
+	 * @param aPPELANT_BENEF_ID the aPPELANT_BENEF_ID to set
+	 */
+	public void setBENEF_APPELANT_ID(String aBENEF_APPELANT_ID) {
+		BENEF_APPELANT_ID = aBENEF_APPELANT_ID;
+	}
 
 }

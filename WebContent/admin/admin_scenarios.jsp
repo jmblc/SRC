@@ -41,7 +41,7 @@ if ( myscenario!=null)
 				<tr>
 					<td class="bleu11">Campagne</td>
 					<td>					
-						<html:select property="campagne_id" styleClass="swing_11"  style="width:350px" onchange="Javascript:selectCampagneScenario()">
+						<html:select property="campagne_id" styleClass="swing_11" style="width:350px" onchange="Javascript:selectCampagneScenario()">
 							<option value="-1"></option>
 							
 							<%for(int i=0;i<scn_campagnes.size(); i++){ 

@@ -15,11 +15,11 @@ import org.apache.struts.action.DynaActionForm;
 import org.apache.struts.actions.DispatchAction;
 
 import fr.igestion.crm.CrmUtilSession;
-import fr.igestion.crm.IContacts;
 import fr.igestion.crm.SQLDataService;
 import fr.igestion.crm.bean.ComparateurEntiteGestion;
 import fr.igestion.crm.bean.TeleActeur;
 import fr.igestion.crm.bean.contrat.EntiteGestion;
+import fr.igestion.crm.config.IContacts;
 
 public class AdministrationEntitesGestionSensiblesAction extends DispatchAction {
 

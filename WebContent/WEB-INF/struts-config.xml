@@ -17,7 +17,9 @@
 		<form-property name="method" type="java.lang.String"/>
 		<form-property name="teleacteur_id" type="java.lang.String"/> 
 		<form-property name="id_objet" type="java.lang.String"/>
-		<form-property name="cle_recherche" type="java.lang.String"/>				
+		<form-property name="id_beneficiaire" type="java.lang.String"/>
+		<form-property name="cle_recherche" type="java.lang.String"/>
+		<form-property name="cle_recherche_aux" type="java.lang.String"/>				
 		<form-property name="campagne_id" type="java.lang.String"/>
 		<form-property name="mutuelle_id" type="java.lang.String"/>  
 		<form-property name="appelant_code" type="java.lang.String"/>
@@ -116,7 +118,8 @@
 		<form-property name="transfert_id" type="java.lang.String"/> 
 		<form-property name="libelle" type="java.lang.String"/> 
 		<form-property name="email" type="java.lang.String"/>	
-		<form-property name="texte_generique" type="java.lang.String"/> 	
+		<form-property name="texte_generique" type="java.lang.String"/>
+		<form-property name="affectations" type="java.lang.String[]"/>
    	</form-bean> 
    	
 	<form-bean name="AdministrationEntitesGestionSensiblesForm" type="org.apache.struts.action.DynaActionForm">
@@ -176,7 +179,8 @@
 		<form-property name="transferts_sous_point" type="java.lang.String"/>
 	   	<form-property name="code_regime" type="java.lang.String"/>		
 	    <form-property name="mail_resiliation" type="java.lang.String"/>	
-	    <form-property name="flux_transfert_client" type="java.lang.String"/>	
+	    <form-property name="flux_transfert_client" type="java.lang.String"/>
+	    <form-property name="fichierImport" type="org.apache.struts.upload.FormFile"/>
 	</form-bean>
 	
 	<form-bean name="AdministrationModificationDeclenchementMailResiliationForm" type="org.apache.struts.action.DynaActionForm">
@@ -408,7 +412,8 @@
 	
 	<action name="AdministrationScenariosForm" parameter="method" path="/AdministrationScenarios" scope="session" type="fr.igestion.crm.admin.AdministrationScenariosAction">
    	   <forward name="expirationSession" path="/login/sessionExpiree.html"/>
-	   <forward name="scenarios" path=".scenarios.page"/>	
+	   <forward name="scenarios" path=".scenarios.page"/>
+	   <forward name="import_export_scenarios" path=".import_export.scenarios"/>
 	</action>
 	
 	<action name="AdministrationPECForm" parameter="method" path="/AdministrationPEC" scope="session" type="fr.igestion.crm.admin.AdministrationPECAction">

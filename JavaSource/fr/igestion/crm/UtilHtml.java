@@ -2,8 +2,11 @@ package fr.igestion.crm;
 
 import java.io.File;
 import java.text.Normalizer;
+
 import javax.servlet.http.HttpServletRequest;
-import common.Logger;
+
+import org.apache.log4j.Logger;
+
 import fr.igestion.crm.bean.contrat.Mutuelle;
 
 public class UtilHtml {

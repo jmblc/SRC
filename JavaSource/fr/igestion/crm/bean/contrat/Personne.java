@@ -1,5 +1,6 @@
 package fr.igestion.crm.bean.contrat;
 
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class Personne {
@@ -59,6 +60,14 @@ public class Personne {
 
     public Date getDATENAISSANCE() {
         return DATENAISSANCE;
+    }
+    
+    public String getDateNaissanceLisible() {
+		if (DATENAISSANCE != null) {
+			return new SimpleDateFormat("dd/MM/yyyy").format(DATENAISSANCE);
+		} else {
+			return "";
+		}
     }
 
     public void setDATENAISSANCE(Date datenaissance) {

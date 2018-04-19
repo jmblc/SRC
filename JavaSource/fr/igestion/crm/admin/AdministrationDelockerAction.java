@@ -12,9 +12,9 @@ import org.apache.struts.action.DynaActionForm;
 import org.apache.struts.actions.DispatchAction;
 
 import fr.igestion.crm.CrmUtilSession;
-import fr.igestion.crm.IContacts;
 import fr.igestion.crm.SQLDataService;
 import fr.igestion.crm.bean.Appel;
+import fr.igestion.crm.config.IContacts;
 
 public class AdministrationDelockerAction extends DispatchAction {
 

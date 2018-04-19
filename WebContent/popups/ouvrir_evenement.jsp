@@ -1,8 +1,12 @@
+<%@page import="jxl.write.biff.DateRecord"%>
 <%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
 <%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
 <%@ taglib uri="/WEB-INF/struts-html.tld" prefix="html" %>
-<%@ taglib uri="/WEB-INF/struts-tiles.tld" prefix="tiles" %>	
-<%@ page language="java" import="java.util.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.evenement.*,fr.igestion.crm.bean.contrat.*,fr.igestion.crm.*, org.apache.struts.action.*" contentType="text/html;charset=ISO-8859-1"%>
+<%@ taglib uri="/WEB-INF/struts-tiles.tld" prefix="tiles" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/functions" prefix="fn" %>
+<%@ page language="java" import="java.util.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.evenement.*,fr.igestion.crm.bean.contrat.*,fr.igestion.crm.*, org.apache.struts.action.*" 
+contentType="text/html;charset=ISO-8859-1" isELIgnored="false"%>
 <%
 String idEvenement = (String) request.getParameter("idEvenement");
 Evenement evenement = SQLDataService.getEvenementById(idEvenement);
@@ -26,7 +30,7 @@ String libelle_entreprise = "", entite_gestion_entreprise = "", numero_siret_ent
 String type_appelant = "", prenom_nom_appelant = "",  etablissement_rs_appelant = "", code_adherent_appelant = "", numero_finess_appelant = "", adresse_appelant = "", telephones_appelant = "";
 
 // Email sortant
-String email = "";
+String email = "", sujet = "", expediteur = "";
 
 //Les dates EVENEMENT.EVENEMENT :
 String date_creation = "", date_edition_col_13 = "", date_envoi_poste_col_14 = "", date_derniere_maj = ""; 
@@ -66,6 +70,11 @@ if( evenement != null){
 	email = evenement.getEMAIL();
 	
 	if(complements_infos != null){
+		
+		email = complements_infos.getDESTINATAIRE();
+		expediteur = complements_infos.getEXPEDITEUR();
+		sujet = complements_infos.getSUJET();
+		
 		infos_courriers = complements_infos.getInfosCourriers();
 			
 		nb_documents = infos_courriers.size();
@@ -78,9 +87,12 @@ if( evenement != null){
 		} 
 		
 				
-		date_traitement = ( complements_infos.getDATE_TRAITEMENT() != null )? UtilDate.fmtDDMMYYYYHHMMSS(complements_infos.getDATE_TRAITEMENT()) :"";
-		date_reception_poste = ( complements_infos.getDATE_RECEPTION_POSTE() != null )? UtilDate.fmtDDMMYYYYHHMMSS(complements_infos.getDATE_RECEPTION_POSTE()) :""; 
-		date_identification = ( complements_infos.getDATE_IDENTIFICATION() != null )? UtilDate.fmtDDMMYYYYHHMMSS(complements_infos.getDATE_IDENTIFICATION()) :"";
+		date_traitement = (complements_infos.getDATE_TRAITEMENT() != null) ? UtilDate.fmtDDMMYYYYHHMMSS(complements_infos.getDATE_TRAITEMENT()) :"";
+		date_reception_poste = (complements_infos.getDATE_RECEPTION_POSTE() != null) ? UtilDate.formatDDMMYYYY(complements_infos.getDATE_RECEPTION_POSTE()) :""; 
+		if ("".equals(date_reception_poste) && complements_infos.getDATE_INSERTION() != null) {
+			date_reception_poste = UtilDate.formatDDMMYYYY(complements_infos.getDATE_INSERTION());
+		}
+		date_identification = (complements_infos.getDATE_IDENTIFICATION() != null) ? UtilDate.fmtDDMMYYYYHHMMSS(complements_infos.getDATE_IDENTIFICATION()) :"";
 			
 		
 		courrier_origine =  complements_infos.getCourrierOrigine();
@@ -88,6 +100,11 @@ if( evenement != null){
 		commentaire = evenement.getCOMMENTAIRE();
 		
 	}
+	
+	pageContext.setAttribute("email", email);
+	pageContext.setAttribute("expediteur", expediteur);
+	pageContext.setAttribute("sujet", sujet);
+	pageContext.setAttribute("direction", direction);
 	
 	lot = evenement.getCOURRIER_ID();
 	createur_id = evenement.getCREATEUR_ID();
@@ -199,7 +216,7 @@ if( evenement != null){
   	<title>H.Contacts | D&eacute;tail &eacute;v&eacute;nement <%=idEvenement%></title>
   	<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/hcontacts_styles.css">
 	<link rel="shortcut icon" href="<%=request.getContextPath()%>/img/favicon.ico" type="image/x-icon">		
-	<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js"></script>
+	<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js?v4.2"></script>
  </head>
 
  <body marginheight="0" marginwidth="0" topmargin="0" leftmargin="0">	
@@ -353,12 +370,24 @@ if( evenement != null){
 								<td class="bleu11" nowrap="nowrap" width="1%">Media</td>
 								<td class="noir11"><%=media %></td>	
 							</tr>								
-							<%if( "Courriel".equalsIgnoreCase( media ) && "Sortant".equalsIgnoreCase(direction)){ %>
+							<%if(Arrays.asList("Courriel", "Email").contains(media)){ %>
 							<tr>
-								<td class="bleu11" nowrap="nowrap" width="1%">Destinataire :</td>
-								<td class="noir11"><%=email %></td>	
+								<logic:notEmpty name="expediteur">
+									<td class="bleu11" nowrap="nowrap" width="1%" valign="top">Expéditeur</td>
+									<td class="noir11" valign="top">${expediteur}</td>	
+								</logic:notEmpty>
+								<td class="bleu11" nowrap="nowrap" width="1%" valign="top">Destinataire</td>
+								<td class="noir11" valign="top"><%=email %></td>	
 							</tr>	
 							<%} %>
+							
+							<logic:notEmpty name="sujet">
+								<tr>
+									<td class="bleu11" nowrap="nowrap" width="1%" valign="top">Sujet</td>
+									<td class="noir11" valign="top">${sujet}</td>	
+								</tr>	
+							</logic:notEmpty>
+							
 							<tr>
 								<td class="bleu11" nowrap="nowrap">Type du dossier</td>
 								<td class="noir11"><%=sous_motif%></td>	
@@ -396,7 +425,10 @@ if( evenement != null){
 													
 							<%if( ! "".equals(date_reception_poste) ){ %>
 							<tr>
-								<td class="bleu11" nowrap="nowrap" width="1%">Date de r&eacute;ception</td>
+								<td class="bleu11" nowrap="nowrap" width="1%">								
+									<c:if test="${not (direction eq 'Sortant')}">Date de r&eacute;ception</c:if>
+									<c:if test="${direction eq 'Sortant'}">Date d'envoi</c:if>
+								</td>
 								<td class="noir11"><%=date_reception_poste %></td>	
 							</tr>
 							<%}%>	

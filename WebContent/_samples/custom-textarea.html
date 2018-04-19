@@ -1,0 +1,136 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Contenu éditable</title>
+
+<script type="text/javascript">
+
+srv_sel = new ServiceSelection();
+srv_sel.cibler("contenu");
+
+function ServiceSelection() {
+
+	var _srv_sel = this;	
+	this.transfos = new Array();
+	
+	this.cibler = function(id_cible) {
+		window.onload = function () {
+			_srv_sel.selecteur = new Selecteur(id_cible);
+		}
+	}	
+
+	function Selecteur(id_cible) {
+		
+		var _selecteur = this;
+		var _cible = document.getElementById(id_cible);	
+		
+		this.selectionner = function(event) {			
+			var element = event.target;
+			while (element) {
+				if (element == _cible) {
+					_selecteur.range = document.getSelection().getRangeAt(0);
+					_selecteur.selection = document.getSelection().toString();
+					var englobant = _selecteur.range.startContainer.parentNode;
+					var emetteur = getSourcesTransformation(englobant);
+					if (emetteur) {
+						emetteur.forEach(function(elt) {
+							encapsuler(elt, englobant.tagName);
+						});
+					}
+					break;
+				} else {
+					element = element.parentElement;
+				}
+			}
+		}		
+		window.addEventListener("mouseup", this.selectionner, false);
+		window.addEventListener("keyup", this.selectionner, false);
+	}
+	
+	this.transformerSelection = function(balise) {
+		
+		if (this.selecteur.range && this.selecteur.selection) {
+			
+			var emetteur = event.target;
+			var range = this.selecteur.range;
+			var selection = this.selecteur.selection;
+			
+			var elem = encapsuler(document.createTextNode(selection), balise)
+			range.deleteContents();
+			range.insertNode(elem);
+			addTransformation(elem, emetteur);
+			
+			var new_sel = document.getSelection();
+			new_sel.removeAllRanges();
+			new_sel.addRange(range);
+			
+		}
+	}
+	
+	function addTransformation(elem, emetteur) {		
+		
+		var emetteurs = getSourcesTransformation(elem);
+		if (emetteurs) {
+			if(!emetteurs.indexOf(emetteur) > -1) {
+				emetteurs.push(emetteur);
+				_srv_sel.transfos.splice(getIndexTransformation(elem), 1, {key: elem, value: emetteurs});
+			}
+		} else {
+			emetteurs = new Array();
+			emetteurs.push(emetteur);
+			_srv_sel.transfos.push({key: elem, value: emetteurs});
+		}		
+	}
+	
+	function getIndexTransformation(elem) {
+		return _srv_sel.transfos.findIndex(function(map) {
+			if (map.key == elem) {
+				return true;
+			}
+			return false;
+		});
+	}
+	
+	function getSourcesTransformation(elem) {
+		var index = getIndexTransformation(elem);
+		if (index > -1) {
+			var entree = _srv_sel.transfos[index];
+			return entree.value;
+		}		
+		return null;
+	}
+	
+	function encapsuler(noeud, balise) {		
+		if (noeud) {
+			var parent = noeud.parentNode;
+			var next = noeud.nextSibling;
+			var elem = document.createElement(balise);			
+			if (!parent || parent.tagName != balise) {
+				elem.appendChild(noeud);
+				if (parent) {
+					if (next) {
+						parent.insertBefore(elem, next);
+					} else {
+						parent.appendChild(elem);
+					}
+				}
+			}
+			return elem;
+		}
+		return null;
+	}
+	
+}
+	
+</script>
+
+</head>
+<body>
+
+<a onclick="srv_sel.transformerSelection('b')">Gras</a> | <a onclick="srv_sel.transformerSelection('i')">Italic</a>
+<div id="contenu" contenteditable="true">- Ecris ici ce que tu veux si tu veux -</div>
+
+</body>
+
+</html>

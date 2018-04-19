@@ -2,8 +2,8 @@
 <%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
 <%@ taglib uri="/WEB-INF/struts-html.tld" prefix="html" %>
 <%@ taglib uri="/WEB-INF/struts-tiles.tld" prefix="tiles" %>	
-<div style="padding-top:20px;padding-bottom:20px;">
-	<fieldset style="width:90%;border:3px solid #DADADA"><legend><label class="noir12IB">RECHERCHE </label><label class="bordeau12IB">ENTREPRISES</label>&nbsp;&nbsp;<img src="./img/ENTREPRISE_SMALL.gif" align="top" />&nbsp;</legend>
+<div style="padding-bottom:20px; padding-top:20px;">
+	<fieldset style="border:3px solid #DADADA"><legend><label class="noir12IB">RECHERCHE </label><label class="bordeau12IB">ENTREPRISES</label>&nbsp;&nbsp;<img src="./img/ENTREPRISE_SMALL.gif" align="top" />&nbsp;</legend>
 		<table cellpadding="4" cellspacing="2" border="0" align="left">
 			<tr>
 				

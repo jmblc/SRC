@@ -38,6 +38,9 @@
 		<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/themes/datepicker/themes/flick/jquery.ui.all.css">
 		<!-- tabs -->
 		<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/themes/tabs/themes/flick/jquery.ui.all.css">
+	
+		<link href="<%=request.getContextPath()%>/layout/themes/fixed-header/defaultTheme.css" rel="stylesheet" type="text/css" media="screen" />
+				
 		<style type="text/css">
 			.ui-datepicker {font-size: 12px;}
 		 	.ui-datepicker-week-end{color:#C60D2D;}
@@ -51,7 +54,7 @@
 			var contextPath = "<%=request.getContextPath()%>";
 		</script>
 
-		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js"></script>
+		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js?v4.2"></script>
 				
 		<!-- JQUERY DEBUT -->
 		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/jquery-1.4.2.js"></script>

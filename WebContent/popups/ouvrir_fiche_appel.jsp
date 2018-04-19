@@ -2,7 +2,7 @@
 <%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
 <%@ taglib uri="/WEB-INF/struts-html.tld" prefix="html" %>
 <%@ taglib uri="/WEB-INF/struts-tiles.tld" prefix="tiles" %>	
-<%@ page language="java" import="java.util.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.contrat.*,fr.igestion.crm.bean.evenement.*,fr.igestion.crm.*, org.apache.struts.action.*" contentType="text/html;charset=ISO-8859-1"%>
+<%@ page language="java" import="java.util.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.contrat.*,fr.igestion.crm.bean.evenement.*,fr.igestion.crm.*, org.apache.struts.action.*,fr.igestion.crm.config.*" contentType="text/html;charset=ISO-8859-1"%>
 <%
 String idAppel = (String) request.getParameter("idAppel");
 String modeOuverture = (String) request.getParameter("modeOuverture");
@@ -274,7 +274,7 @@ else{
 		<!-- CSS FIN -->					
 
 
-		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js"></script>
+		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js?v4.2"></script>
 				
 		<!-- JQUERY DEBUT -->
 		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/jquery-1.4.2.js"></script>
@@ -531,7 +531,7 @@ else{
 							</tr>
 							<%}%>
 							
-							<tr>
+				<%-- 			<tr>
 								<td class="bleu11" nowrap="nowrap">R&eacute;clamation</td>
 								<td colspan="4"><%=reclamation %></td>	
 							</tr>
@@ -544,7 +544,7 @@ else{
 							<tr>
 								<td class="bleu11" nowrap="nowrap">A rappeler ?</td>
 								<td colspan="4"><%=a_rappeler %></td>	
-							</tr>
+							</tr> --%>
 							
 							<tr>
 								<td class="bleu11" nowrap="nowrap" width="1%">Satisfaction</td>

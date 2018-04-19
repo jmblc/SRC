@@ -1,3 +1,7 @@
+a {	
+	cursor: hand;
+}
+
 .table_comptage{
 	border:1 solid 1px gray;	
 	border-collapse:collapse;	
@@ -166,6 +170,56 @@
 	font-size: 11px;
 	color: #9E9E9E;
 	text-decoration: none;
+}
+
+.close {	
+	font-family: Verdana, Helvetica, sans-serif;
+	color: #B10000;
+	font-size: 10px;
+	vertical-align: text-top;
+	text-align:center;
+	cursor: hand;
+	border: solid 1px #DDDDDD;
+	background-color: #F0F0F0;
+	font-weight: bold;
+	margin-right: 2px;
+	padding-left: 1px;
+	padding-right: 1px;
+}
+
+.info {	
+	font-family: Verdana, Helvetica, sans-serif;
+	font-size: 11px;
+	color: #000000;
+	border: solid 1px #F0F0F0;
+	position:absolute;
+	top: 2px;
+	left: 2px;
+	width: 95%;
+	background-color: #fffee6;
+	display: none;
+	padding: 5px;
+}
+
+.raffraichir {
+	position:absolute;
+	top: 10px;
+	right: 20px;
+	height: 20px;
+	width: 20px;
+	background-image: url(../img/raffraichir.jpg);
+	background-size: 20px 20px;
+	background-repeat: no-repeat;
+	cursor: hand;
+}
+
+
+.multiselect{
+	border: 1px solid #7eabe2;
+	color: #646464;
+	padding: 2px;
+	font-size: 11px;
+	font-family: Verdana, Arial, Helvetica, sans-serif;
 }
 
 
@@ -461,6 +515,13 @@
 	font-size: 11px;
 	/*color:#3EADF0;*/ /*color:#0080FF;*/
 	color: #316AC5;
+}
+
+.bleu11I {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: 11px;
+	color: #316AC5;
+	font-style: italic;
 }
 
 .bleu12 {
@@ -1058,6 +1119,8 @@ a.reverse:active {font-family:Verdana,Arial,Helvetica,sans-serif;font-size:11px;
 .m_table{
 	border: 1 solid #D9D9D9;	
 	border-collapse:collapse;
+	margin-left: auto;
+    margin-right: auto;
 }
 		
 	
@@ -1081,7 +1144,7 @@ a.reverse:active {font-family:Verdana,Arial,Helvetica,sans-serif;font-size:11px;
 	border-left: 1px solid #D9D9D9; 			
 	color: #FFFFFF; 	
 	background: #3D80DF;					
-	height:26px;			
+	height:26px;
 }
 
 
@@ -1150,7 +1213,7 @@ a.reverse:active {font-family:Verdana,Arial,Helvetica,sans-serif;font-size:11px;
 .m_td{
 	font-family: verdana;
 	padding: 4px 8px; 
-	border-left: 1px solid #D9D9D9; 	
+	border-left: 1px solid #D9D9D9;
 }
 
 .m_td_sans_main{

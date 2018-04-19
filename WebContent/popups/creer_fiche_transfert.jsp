@@ -3,7 +3,7 @@
 <%@ taglib uri="/WEB-INF/struts-html.tld" prefix="html"%>
 <%@ taglib uri="/WEB-INF/struts-tiles.tld" prefix="tiles"%>
 <%@ page language="java"
-	import="java.util.*,fr.igestion.crm.bean.*,fr.igestion.crm.*, org.apache.struts.action.*"
+	import="java.util.*,fr.igestion.crm.bean.*,fr.igestion.crm.*, org.apache.struts.action.*,fr.igestion.crm.config.*"
 	contentType="text/html;charset=ISO-8859-1"%>
 <%
 
@@ -176,7 +176,7 @@ if(appel != null){
 <title>H.Contacts | Fiche de Transfert</title>
 	<link rel="shortcut icon" href="<%=request.getContextPath()%>/img/favicon.ico" type="image/x-icon">
 	<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/hcontacts_styles.css">
-	<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js"></script>
+	<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js?v4.2"></script>
 </head>
 
 <body marginheight="0" marginwidth="0" topmargin="0" leftmargin="0">

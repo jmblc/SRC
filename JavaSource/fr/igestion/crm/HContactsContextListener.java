@@ -4,10 +4,16 @@
  */
 package fr.igestion.crm;
 
+import java.util.Collection;
+
+import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 
 import org.apache.log4j.Logger;
+
+import fr.igestion.crm.config.IContacts;
+import fr.igestion.crm.services.BackOfficeService;
 
 public class HContactsContextListener implements ServletContextListener {
 
@@ -17,6 +23,9 @@ public class HContactsContextListener implements ServletContextListener {
     public void contextInitialized(ServletContextEvent arg0) {
 
         try {
+        	ServletContext application = arg0.getServletContext();
+        	application.setAttribute("contextPath", application.getContextPath());
+        	IContacts.setContextPath(application.getContextPath());
 
             SQLDataService.getInstance();
             LOGGER.info("**************************************************************");
@@ -24,6 +33,11 @@ public class HContactsContextListener implements ServletContextListener {
             LOGGER.info("**************************************************************");
 
             SQLDataService.positionnerModule("HContacts");
+            
+            Collection<?> teleacteurs_recherche = SQLDataService.getTeleActeurs("0", "");
+            application.setAttribute(IContacts._var_session_teleacteurs_recherche, teleacteurs_recherche);
+            application.setAttribute(IContacts._var_context_param_app, BackOfficeService.getParametrage());
+            
         } catch (Exception e) {
             LOGGER.error("contextInitialized", e);
         }

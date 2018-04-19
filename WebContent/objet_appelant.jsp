@@ -15,8 +15,10 @@
 		<jsp:include flush="true" page="./appelant/appelant_recherche.jsp"></jsp:include>
 	<%}
 }
-else{
+else{%>
 
+	<div class="bordure_point" style="padding-left: 5px; padding-right: 5px;">
+<%
 	if(objet_appelant.getType().indexOf("Assur") != -1 ){
 		Beneficiaire beneficiaire = (Beneficiaire) objet_appelant.getObjet();
 		String objet_lisible = objet_appelant.getLisible();
@@ -98,6 +100,7 @@ else{
 			<jsp:include flush="true" page="./appelant/appelant_onglet_historique.jsp"></jsp:include>
 		<%}	
 		
-	}
-}%>
+	}%>
+	</div>
+<%}%>
 <!-- ONGLETS FIN -->

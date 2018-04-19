@@ -5,8 +5,8 @@ import java.util.Date;
 import javax.servlet.http.HttpSession;
 
 import fr.igestion.annuaire.bean.Utilisateur;
-import fr.igestion.crm.IContacts;
 import fr.igestion.crm.UtilDate;
+import fr.igestion.crm.config.IContacts;
 
 public class InfosDeSession {
 

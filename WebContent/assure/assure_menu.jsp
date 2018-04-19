@@ -1,12 +1,14 @@
+<%@ page language="java" contentType="text/html;charset=ISO-8859-1" isELIgnored="false"%>
+
 <jsp:directive.include file="../fiche_appel_shared_object.jsp"/>
 
-<table width="100%">
+<table width="100%" cellpadding="5px">
 	<tr>
-		<td width="90%" valign="top">
+		<td valign="top">
 			<table border="0" class="menu_onglet" width="100%">
 				<tr>
 					<!-- ASSURE -->
-					<td width="1%"><img src="../img/ASSURE.gif"></td>
+					<td width="1%"><img src="${contextPath}/img/ASSURE.gif"></td>
 					<td width="60px">
 					<%if(objet_appelant.getOngletCourant().equals("ONGLET_ASSURE")){ %>
 						<label class="onglet_actif">Assur&eacute;</label>
@@ -17,7 +19,7 @@
 			
 			
 					<!-- COMPOSITION FAMILIALE -->
-					<td width="1%"><img src="../img/FAMILLE.gif"></td>
+					<td width="1%"><img src="${contextPath}/img/FAMILLE.gif"></td>
 					<td width="120px">
 					<%if(objet_appelant.getOngletCourant().equals("ONGLET_ASSURE_COMPO_FAMILIALE")){ %>
 						<label class="onglet_actif">Compo. Familiale</label>
@@ -28,7 +30,7 @@
 					<td width="1px"><div class="separateur_vertical"></div></td>
 			
 					<!-- HISTORIQUE -->			
-					<td width="1%"><img src="../img/HISTORIQUE.gif"></td>
+					<td width="1%"><img src="${contextPath}/img/HISTORIQUE.gif"></td>
 					<td width="80px">
 					<%if(objet_appelant.getOngletCourant().equals("ONGLET_ASSURE_HISTORIQUE")){ %>
 						<label class="onglet_actif">Historique</label>
@@ -40,7 +42,7 @@
 			
 			
 					<!-- PRESTATIONS -->			
-					<td width="1%"><img src="../img/PRESTATIONS.gif"></td>
+					<td width="1%"><img src="${contextPath}/img/PRESTATIONS.gif"></td>
 					<td width="80px">
 					<%if(objet_appelant.getOngletCourant().equals("ONGLET_ASSURE_PRESTATIONS")){ %>
 						<label class="onglet_actif">Prestations</label>
@@ -52,7 +54,7 @@
 			
 			
 					<!-- BANQUE RO -->
-					<td width="1%"><img src="../img/BANQUE_RO.gif"></td>
+					<td width="1%"><img src="${contextPath}/img/BANQUE_RO.gif"></td>
 					<td width="100px">
 					<%if(objet_appelant.getOngletCourant().equals("ONGLET_ASSURE_BANQUE_RO")){ %>
 						<label class="onglet_actif">Banque - RO</label>
@@ -64,7 +66,7 @@
 			
 			
 					<!-- CONTRATS -->
-					<td width="1%"><img src="../img/CONTRATS2.gif"></td>
+					<td width="1%"><img src="${contextPath}/img/CONTRATS2.gif"></td>
 					<td width="80px">
 					<%if(objet_appelant.getOngletCourant().equals("ONGLET_ASSURE_CONTRATS")){ %>
 						<label class="onglet_actif">Contrats</label>
@@ -77,7 +79,7 @@
 			
 			
 					<!-- ENTREPRISE -->
-					<td width="1%"><img src="../img/ENTREPRISE.gif"></td>
+					<td width="1%"><img src="${contextPath}/img/ENTREPRISE.gif"></td>
 					<td width="80px">
 					<%if(objet_appelant.getOngletCourant().equals("ONGLET_ASSURE_ENTREPRISE")){ %>
 						<label class="onglet_actif">Entreprise</label>
@@ -89,7 +91,7 @@
 			
 			
 					<!-- MOT DE PASSE -->
-					<td width="1%"><img src="../img/MOT_DE_PASSE2.gif"></td>
+					<td width="1%"><img src="${contextPath}/img/MOT_DE_PASSE2.gif"></td>
 					<td width="100px">
 					<%if(objet_appelant.getOngletCourant().equals("ONGLET_ASSURE_MOT_DE_PASSE")){ %>
 						<label class="onglet_actif">Mot de passe</label>
@@ -101,7 +103,7 @@
 					
 					<!-- ABONNEMENTS -->
 					<%if(objet_appelant.getAbonnements() != null && !objet_appelant.getAbonnements().isEmpty() ){ %>
-						<td width="1%"><img src="../img/ABONNEMENT.gif"></td>
+						<td width="1%"><img src="${contextPath}/img/ABONNEMENT.gif"></td>
 						<td width="100px">
 						<%if(objet_appelant.getOngletCourant().equals("ONGLET_ASSURE_ABONNEMENT")){ %>
 							<label class="onglet_actif">Abonnements</label>
@@ -115,7 +117,7 @@
 				</tr>				
 			</table>
 		</td>
-		<td align="right" valign="top">
+		<td>
 			<input type="button" value="Effacer" style="width:75px" class="bouton_bleu" onclick="Javascript:ficheAppelNouvelleRechercheAssure()"> 
 		</td>
 	</tr>

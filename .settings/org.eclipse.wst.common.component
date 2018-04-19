@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?><project-modules id="moduleCoreId" project-version="1.5.0">
-    <wb-module deploy-name="Intranet IContacts">
+    <wb-module deploy-name="HContacts-4.2.0">
         <wb-resource deploy-path="/WEB-INF/classes" source-path="/JavaSource"/>
-        <wb-resource deploy-path="/WEB-INF/classes" source-path="/JavaTest"/>
-        <wb-resource deploy-path="/WEB-INF/classes" source-path="/work"/>
+        <wb-resource deploy-path="/" source-path="/target/m2e-wtp/web-resources"/>
         <wb-resource deploy-path="/" source-path="/WebContent" tag="defaultRootSource"/>
-        <dependent-module archiveName="common-tools.jar" deploy-path="/WEB-INF/lib" handle="module:/resource/common-tools/common-tools">
+        <wb-resource deploy-path="/WEB-INF/classes" source-path="/JimbeSource"/>
+        <wb-resource deploy-path="/WEB-INF/classes" source-path="/JavaTest"/>
+        <dependent-module archiveName="common-tools-0.0.1.jar" deploy-path="/WEB-INF/lib" handle="module:/resource/common-tools/common-tools">
             <dependency-type>uses</dependency-type>
         </dependent-module>
-        <property name="context-root" value="Intranet_IContacts"/>
-        <property name="java-output-path" value="/Intranet IContacts/WebContent/WEB-INF/classes"/>
+        <property name="java-output-path" value="/HContacts-dev/target/classes"/>
+        <property name="context-root" value="HContacts"/>
     </wb-module>
 </project-modules>

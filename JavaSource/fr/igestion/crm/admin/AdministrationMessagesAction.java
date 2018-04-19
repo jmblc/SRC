@@ -15,11 +15,11 @@ import org.apache.struts.action.DynaActionForm;
 import org.apache.struts.actions.DispatchAction;
 
 import fr.igestion.crm.CrmUtilSession;
-import fr.igestion.crm.IContacts;
 import fr.igestion.crm.SQLDataService;
 import fr.igestion.crm.bean.ComparateurMessage;
 import fr.igestion.crm.bean.Message;
 import fr.igestion.crm.bean.scenario.Campagne;
+import fr.igestion.crm.config.IContacts;
 
 public class AdministrationMessagesAction extends DispatchAction {
 

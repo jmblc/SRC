@@ -20,6 +20,7 @@ import fr.igestion.crm.bean.ObjetAppelant;
 import fr.igestion.crm.bean.TeleActeur;
 import fr.igestion.crm.bean.contrat.Mutuelle;
 import fr.igestion.crm.bean.scenario.Campagne;
+import fr.igestion.crm.config.IContacts;
 
 public class AccueilAction extends DispatchAction {
 
@@ -74,7 +75,7 @@ public class AccueilAction extends DispatchAction {
         Collection<Message> messages = SQLDataService
                 .getCampagneMessage(campagne_id);
         campagne.setMessages(messages);
-        campagne.setMutuelles(mutuelles);
+
         request.getSession().setAttribute(_var_session_campagne, campagne);
         
         CrmForms.initialiserFicheAppelForm(mapping, request, campagne,
@@ -89,6 +90,8 @@ public class AccueilAction extends DispatchAction {
         objet_appelant.setObjetPrestations(null);
 
         request.getSession().setAttribute(_var_session_objet_appelant, objet_appelant);
+        request.getSession().removeAttribute(FicheAppelAction._var_session_beneficiaire_aux);
+        request.getSession().removeAttribute(FicheAppelAction._var_session_recherche_aux);
         
         request.getSession().setAttribute(FicheAppelAction._var_session_lst_modele_procedureMail,new ArrayList<ModeleProcedureMail>());
         request.getSession().setAttribute(FicheAppelAction._var_session_selected_procedureMails,new ArrayList<ModeleProcedureMail>());

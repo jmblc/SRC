@@ -2,9 +2,9 @@ package fr.igestion.crm.bean;
 
 import java.util.Comparator;
 
-import common.Logger;
+import org.apache.log4j.Logger;
 
-import fr.igestion.crm.IContacts;
+import fr.igestion.crm.config.IContacts;
 
 public class ComparateurTeleActeur implements Comparator<TeleActeur> {
 

@@ -1,68 +1,79 @@
+<%@ page language="java" import="fr.igestion.crm.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.scenario.*,java.util.*,java.io.*,java.net.*" 
+		 contentType="text/html;charset=ISO-8859-1" isELIgnored="false"%>
 <%@ taglib uri="/WEB-INF/struts-logic.tld" prefix="logic" %>
 <%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
 <%@ taglib uri="/WEB-INF/struts-html.tld" prefix="html" %>
-<%@ taglib uri="/WEB-INF/struts-tiles.tld" prefix="tiles" %>	
-<%@ page language="java" import="fr.igestion.crm.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.scenario.*,java.util.*,java.io.*,java.net.*" contentType="text/html;charset=ISO-8859-1"%>
+<%@ taglib uri="/WEB-INF/struts-tiles.tld" prefix="tiles" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/functions" prefix="fn" %>
+<%@ taglib uri="/WEB-INF/custom-taglib.tld" prefix="custom" %>
+
+
 <jsp:directive.include file="fiche_appel_shared_object.jsp"/>
+
 <%
-	String classe_campagne = "class=\"item_swing_11_actif\"";
-	if(campagne.getActif().equals("0")){
-		classe_campagne = "class=\"item_swing_11_inactif\"";
+	Object objetAdherent = objet_appelant.getObjet();
+	if ((objetAdherent instanceof Beneficiaire)) {
+		String res = SQLDataService.hasCNDS(((Beneficiaire) objetAdherent).getCODE());
+		if (res == "OK") {
+			objet_appelant.setCNSD(true);
+		} else {
+			objet_appelant.setCNSD(false);
+		}
+	} else {
+		objet_appelant.setCNSD(false);
 	}
 %>
-<%
-Object objetAdherent = objet_appelant.getObjet();		
 
-if((objetAdherent instanceof Beneficiaire))
-{
-	String res=SQLDataService.hasCNDS(((Beneficiaire)objetAdherent).getCODE());
-
-if (res=="OK")
-{
-	objet_appelant.setCNSD(true);
-}
-else
-{
-	objet_appelant.setCNSD(false);
-}
-}
-else
-{
-	objet_appelant.setCNSD(false);
-}
-%>
 <html:form action="/FicheAppel.do" >
-<div class="separateur" style="padding-top:0px"/>
-<img src="img/puce_bloc.gif">Appel&nbsp;&nbsp;
-<marquee id="id_marquee" behavior="scroll" scrollamount="4" scrolldelay="1" onmouseover="this.stop()" onmouseout="this.start()" style="background:#FFFFFF;padding:2px;width:94%">
-<%if(messages != null && !messages.isEmpty()){%>
-<label class="message_important">IMPORTANT&nbsp;&nbsp;&nbsp;</label>
-	<%for(int i=0; i<messages.size(); i++){
-		Message message = (Message) messages.toArray()[i];
-	%>
-	<a href="Javascript:displayMessageDefilant(<%=message.getID()%>)" class="reverse"><label class="anthracite10B">MESSAGE <%=i+1%> :&nbsp;</label><%=message.getTITRE()%>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</a>
-	<%}
-}%>
-</marquee>
-</div> 
-<div>
+
+	<div class="separateur" style="padding-top: 0px" />
+	<img src="img/puce_bloc.gif">Appel&nbsp;&nbsp;
+
+	<marquee id="id_marquee" behavior="scroll" scrollamount="4" scrolldelay="1" onmouseover="this.stop()" 
+			onmouseout="this.start()" style="background: #FFFFFF; padding: 2px; width: 94%">
+
+		<c:if test="${campagne.messages ne null and fn:length(campagne.messages) > 0}">
+
+			<label class="message_important">IMPORTANT&nbsp;&nbsp;&nbsp;</label>
+			
+			<c:forEach items="${campagne.messages}" var="message" varStatus="status">
+				<a href="Javascript:displayMessageDefilant(${message.ID})" class="reverse"> 
+					<label class="anthracite10B">MESSAGE ${(status.index + 1)} :&nbsp;</label>
+					${message.TITRE}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+				</a>
+			</c:forEach>
+			
+		</c:if>
+
+	</marquee>
+
+	<div>
 	<TABLE width="100%" border="0">
 		<TR>
-			<TD valign="top" nowrap="nowrap" width="1%">
-				<table width="100%" cellspacing="3" cellpadding="2" class="bordure_point" height="32px">
-					<tr>
-						<td class="bleu11" nowrap="nowrap" width="1%">Campagne</td>
-						<td>							
-							<html:select name="FicheAppelForm" property="campagne_id" styleClass="swing_11">
-								<option value="<%=campagne.getId()%>" <%=classe_campagne%> ><%=campagne.getLibelle()%></option>
-							</html:select>														
-						</td>
-					</tr>
-					
-				</table>
-			</TD>
+				<TD valign="top" nowrap="nowrap" width="1%">
+					<table width="100%" cellspacing="3" cellpadding="2"
+						class="bordure_point" height="32px">
+						<tr>
+							<td class="bleu11" nowrap="nowrap" width="1%">Campagne</td>
+							<td><html:select name="FicheAppelForm" property="campagne_id" styleClass="swing_11">
+									<c:choose>
+										<c:when test="${campagne.actif eq 1}">
+											<option value="${campagne.id}" class="item_swing_11_actif">
+										</c:when>
+										<c:otherwise>
+											<option value="${campagne.id}" class="item_swing_11_inactif">
+										</c:otherwise>
+									</c:choose>
+										${campagne.libelle}
+									</option>
+								</html:select></td>
+						</tr>
 
-			<TD valign="top" nowrap="nowrap" width="1%">
+					</table>
+				</TD>
+
+				<TD valign="top" nowrap="nowrap" width="1%">
 				<table width="100%" cellspacing="3" cellpadding="2" class="bordure_point" height="32px">
 					<tr>
 						<td class="bleu11" nowrap="nowrap" width="1%">Mutuelle</td>
@@ -206,11 +217,22 @@ else
 				<table width="100%" cellspacing="3" cellpadding="2" class="bordure_point" border="0">		
 				
 					<tr>
-						<td>
+						<td width="80%">
 							<jsp:include flush="true" page="objet_appelant.jsp"></jsp:include>	
 						</td>
+						<c:choose>
+							<c:when test="${beneficiaire_aux ne null}">
+								<td valign="top" class="bordure_point">
+									<jsp:include flush="true" page="./assure/assure_onglet_aux.jsp"></jsp:include>	
+								</td>
+							</c:when>
+							<c:otherwise>
+								<td>
+									<jsp:include flush="true" page="./assure/assure_recherche_aux.jsp"></jsp:include>	
+								</td>								
+							</c:otherwise>
+						</c:choose>
 					</tr>
-						
 				</table>
 			</TD>		
 		</TR>
@@ -223,7 +245,7 @@ else
 <div id="ScenarioDiv">
 	<TABLE width="100%" border="0">
 		<TR>
-			<TD width="40%" valign="top">
+			<TD width="35%" valign="top">
 				<table width="100%" border="0" cellspacing="3" cellpadding="2" class="bordure_point" height="165px" >
 														
 					<tr>
@@ -292,7 +314,7 @@ else
 					<tr>
 						<td>
 							<logic:equal name="modeCreation" value="L" scope="session">
-								<a href="javascript:avertissementModeLecture()"><img src="./img/PEC_GRIS.gif" border="0"/></a>
+								<a href="javascript:avertissementModeLecture()"><img src="${contextPath}/img/PEC_GRIS.gif" border="0"/></a>
 							</logic:equal>
 							<logic:notEqual name="modeCreation" value="L" scope="session">
 								<a href="javascript:pec_hcontacts_lancer_formulaire('<%=code_pec_possible_ou_non%>')"><%=img_pec %></a>
@@ -317,7 +339,7 @@ else
 							<table width="100%">
 								<tr>
 								<td><html:hidden name="FicheAppelForm" property="procedure_mail"/>
-									<a href="#" onclick="Javascript:ouvrirListeMail();"><img src="./img/mail.gif" border="0" /></a></td>
+									<a href="#" onclick="Javascript:ouvrirListeMail();"><img src="${contextPath}/img/mail.gif" border="0" /></a></td>
 									<td><html:text name="FicheAppelForm" property="procedure_mail_dest" size="32"/></td>
 									<td>
 									<logic:notEmpty name="lst_modele_procedureMail">
@@ -335,7 +357,7 @@ else
 						<logic:equal name="FicheAppelForm" property="procedure_mail" value="false" scope="session">
 						<tr>
 						<logic:notEmpty name="selected_procedureMail" >
-							<td><a href="#" onclick="Javascript:ouvrirListeMail();"><img src="./img/mail.gif" border="0" /></a></td>
+							<td><a href="#" onclick="Javascript:ouvrirListeMail();"><img src="${contextPath}/img/mail.gif" border="0" /></a></td>
 						</logic:notEmpty>
 						<logic:empty name="selected_procedureMail" >
 							<td class="bleu11" colspan="2">&nbsp;</td>
@@ -373,89 +395,10 @@ else
 <div id="clotureDiv">
 	<TABLE width="100%" border="0">
 		<TR>
-			<TD width="40%" valign="top">
+			<TD width="35%" valign="top">
 				<table border="0" width="100%" cellspacing="3" cellpadding="2" class="bordure_point" height="180px">
 					<tr>
-						<td class="bleu11">Satisfaction</td>
-						<td class="anthracite11" >
-							<html:select name="FicheAppelForm" property="satisfaction_code" styleClass="swing_11" onchange="Javascript:ficheAppelChangeSatisfaction()">
-								<html:option value="-1">&nbsp;</html:option>
-								<%for(int i=0;i<satisfactions.size(); i++){ 
-									LibelleCode satisfaction = (LibelleCode) satisfactions.toArray()[i];									
-								%>
-								<html:option value="<%=satisfaction.getCode()%>"><%=satisfaction.getLibelle()%></html:option>
-								<%}%>
-							</html:select>							
-						</td>
-						<td><div id="id_image_satisfaction" style="width:30px"><img src="img/pixel_transparent.gif" height="20px" width="1px" border="1"></img></div></td>
-						<td class="bleu11" nowrap="nowrap">Rappeler le</td>
-						<td><html:text name="FicheAppelForm" property="date_rappel" styleClass="swing11_85" maxlength="10" styleId="datepicker"></html:text></td>
-						<td><a href="#" onClick="Javascript:document.forms['FicheAppelForm'].date_rappel.value=''"><img src="./img/CLEAR.gif" border="0" align="middle"></img></a>&nbsp;&nbsp;</td>
-					</tr>
-
-					<tr>
-						<td class="bleu11">R&eacute;clamation</td>
-						<td colspan="2" class="noir11">							
-							<logic:iterate id="item" name="<%=IContacts._var_session_oui_non %>"> 
-								<html:radio property="reclamation" value="code" idName="item" style="margin-left:-2"/> 
-		  						<bean:write name="item" property="libelle"/> 
-							</logic:iterate>								
-						</td>
-						
-						<td class="bleu11">T&eacute;l&eacute;phone</td>
-						<td colspan="2">
-							<html:text name="FicheAppelForm" property="numero_rappel" styleClass="swing11_85" maxlength="10"></html:text>
-						</td>
-					</tr>
-
-
-					<tr>
-						<td class="bleu11" nowrap="nowrap">Urgent</td>
-						<td colspan="2" class="noir11">
-							<logic:iterate id="item" name="<%=IContacts._var_session_oui_non %>"> 
-								<html:radio property="traitement_urgent" value="code" idName="item" style="margin-left:-2"/> 
-		  						<bean:write name="item" property="libelle"/> 
-							</logic:iterate>					
-						</td>
-						
-						
-						<td class="bleu11" nowrap="nowrap">P&eacute;riode souhait&eacute;e</td>
-						<td colspan="2">
-							<html:select name="FicheAppelForm" property="periode_rappel" styleClass="swing_11">
-								<html:option value="-1">&nbsp;</html:option>
-								<%for(int i=0;i<periodes_rappel.size(); i++){ 
-									LibelleCode periode = (LibelleCode) periodes_rappel.toArray()[i];									
-								%>
-								<html:option value="<%=periode.getCode()%>"><%=periode.getLibelle()%></html:option>
-								<%}%>
-							</html:select>		
-						</td>
-					</tr>
-					
-					<tr>
-						<td class="bleu11" nowrap="nowrap">Transf&eacute;rer fiche</td>
-						<td class="noir11" colspan="5">										
-							<logic:iterate id="item" name="<%=IContacts._var_session_oui_non %>"> 
-								<html:radio property="transferer_fiche" value="code" idName="item" style="margin-left:-2" onclick="Javascript:ficheAppelChangeTransfererFiche()"/> 
-		  						<bean:write name="item" property="libelle"/> 
-							</logic:iterate>								
-						</td>	
-						
-					</tr>
-					
-					<tr>
-						<td class="bleu11">Destinataires</td>
-						<td colspan="4"><html:text name="FicheAppelForm" property="destinataire_transfert" styleClass="swing11" style="width:348px"></html:text></td>						
-						<td><a href="Javascript:proposerTansferts(<%=campagne.getId()%>)"><img src="img/user_mail.gif" border="0" id="id_image_user_mail" style="visibility:hidden" /></a></td>
-					</tr>
-				</table>
-			</TD>
-
-			<TD>
-				<table width="100%" border="0" cellspacing="3" cellpadding="2" class="bordure_point" height="180px">
-
-					<tr>
-						<td valign="top" width="50%">
+						<td valign="top">
 							<table width="100%">
 								<tr>
 									<td class="titre">Commentaires&nbsp;&nbsp;<img src="img/commentaires.gif"/></td>
@@ -465,68 +408,66 @@ else
 									<html:textarea name="FicheAppelForm" property="commentaires" styleClass="text_area_commentaires" style="width:100%;height:120px"></html:textarea>									
 								</tr>
 							</table>
-						</td>
+						</td>	
+					</tr>				
+				</table>
+			</TD>
 
+			<TD>
+				<table width="100%" border="0" cellspacing="3" cellpadding="2" class="bordure_point" height="180px">
+					<tr>
 						<td valign="top">
-							<table width="100%" border="0">
-								<tr><td colspan="3">&nbsp;</td></tr>	
-								
-								<tr>
-									<td class="bleu11" nowrap="nowrap">Type dossier</td>
-									<td class="bleu11" colspan="2">
-										
-										<html:select name="FicheAppelForm" property="type_dossier" styleClass="swing_11" style="width:100%">
-											<html:option value="-1">&nbsp;</html:option>
-											<%
-												if(types_dossiers != null){
-													for(int i=0;i<types_dossiers.size(); i++){ 
-													LibelleCode type_dossier = (LibelleCode) types_dossiers.toArray()[i];									
-												%>
-												<html:option value="<%=type_dossier.getCode()%>"><%=type_dossier.getLibelle()%></html:option>
-												<%	}
-												
-												}%>
-										</html:select>		
-										
-									
-									</td>
-								</tr>				
-								
+							<table width="100%" border="0" cellpadding="5px">							
 								<tr><td colspan="3">&nbsp;</td></tr>
-								
-								<!-- 
 								<tr>
-									<td class="bleu11" nowrap="nowrap">PEC H.Contacts</td>
-									<td>
-										<%if(modeCreation.equals("L")){%>   
-											<a href="javascript:avertissementModeLecture()"><img src="./img/PEC_GRIS.gif" border="0"/></a>
-										<%}else{%>
-											<a href="javascript:pec_hcontacts_lancer_formulaire('<%=code_pec_possible_ou_non%>')"><%=img_pec %></a>
-										<%}%>
+									<td class="bleu11">Satisfaction</td>
+									<td class="bleu11" colspan="2">
+										<html:select name="FicheAppelForm" property="satisfaction_code" styleClass="swing_11" onchange="Javascript:ficheAppelChangeSatisfaction()">
+											<html:option value="-1">&nbsp;</html:option>
+											<html:options collection="${IContacts.varSessionSatisfactions}" property="code" labelProperty="libelle"/>
+										</html:select> &nbsp; &nbsp;						
+										<span id="id_image_satisfaction" style="width:30px">
+											<img src="${contextPath}/img/pixel_transparent.gif" height="20px" width="1px" border="1"></img>
+										</span>
 									</td>
-									<td>&nbsp;</td>
-								</tr>				
-								-->
-
-								<tr><td colspan="3">&nbsp;</td></tr>		
-										
+								</tr>	
 								<tr>
 									<td class="bleu11" nowrap="nowrap">Mettre en statut</td>
 									<td>
-										<html:select name="FicheAppelForm" property="cloture_code" styleClass="swing_11"  style="width:130px" onchange="Javascript:ficheAppelChangeTypeCloture()">
+										<html:select name="FicheAppelForm" property="cloture_code" styleClass="swing_11" onchange="Javascript:ficheAppelChangeTypeCloture()">
 											<html:option value="-1">&nbsp;</html:option>
-											<%for(int i=0;i<codes_clotures.size(); i++){ 
-												LibelleCode cloture = (LibelleCode) codes_clotures.toArray()[i];									
-											%>
-											<html:option value="<%=cloture.getCode()%>"><%=cloture.getLibelle()%></html:option>
-											<%}%>
-										</html:select>												
+											<custom:html-tag tagName="option" beanName="codes_clotures" valueProperty="alias" textProperty="libelle" otherAttributes="effet"/>
+											
+										</html:select>			
 									</td>
-									<td align="right">
-										<input type="button" id="id_bouton_cloturer" <%if(modeCreation.equals("L")){%> disabled="disabled" title="Vous &ecirc;tes en mode consultation."  <%}%> value="Cl&ocirc;turer" onClick="Javascript:cloturerFicheAppel()" class="bouton_bleu" style="width:75px"> 
+									<td>
+										<c:if test='${modeCreation ne "L"}'>
+											<input type="button" id="id_bouton_cloturer" value="Cl&ocirc;turer" onClick="Javascript:cloturerFicheAppel()" class="bouton_bleu" style="width:75px"> 
+										</c:if>
 									</td>
-								</tr>				
-								
+								</tr>
+								<tr>
+									<td class="bleu11" nowrap="nowrap" width="10%">Type dossier</td>
+									<td class="bleu11" colspan="2">										
+										<html:select name="FicheAppelForm" property="type_dossier" styleClass="swing_11" disabled="true">
+											<html:option value="-1">&nbsp;</html:option>
+											<c:if test="${types_dossiers ne null}">
+												<html:options  collection="types_dossiers" property="code" labelProperty="libelle"/>
+											</c:if>
+										</html:select>
+									</td>
+								</tr>
+								<tr>
+									<td class="bleu11">Destinataires</td>
+									<td>
+										<html:text name="FicheAppelForm" property="destinataire_transfert" styleClass="swing11" style="width:100%;" disabled="true"/>
+									</td>
+									<td>
+										<a id="id_image_user_mail" href="Javascript:proposerTansferts(${campagne.id})" style="display:none;">
+											<img src="${contextPath}/img/user_mail.gif" border="0" />
+										</a>
+									</td>
+								</tr>
 							</table>
 						</td>
 					</tr>
@@ -535,13 +476,17 @@ else
 		</TR>
 	</TABLE>
 </div>
+
 <html:hidden property="method" />
 <html:hidden property="appelant_libelle" />
 <html:hidden property="teleacteur_id" />
 <html:hidden property="id_objet" />
+<html:hidden property="id_beneficiaire"/>
+
 <input type="hidden" name="texte_generique" />
 <input type="hidden" name="id_generique" />
 <input type="hidden" name="mode_creation" value="<%=modeCreation%>" />
+
 
 <%if(modeCreation.equals("L")){%>
 <script type="text/javascript">   
@@ -603,12 +548,6 @@ else
 <%if(modeCreation.equals("E")){%>
 <script type="text/javascript">   
 
-	div = document.getElementById("MenuAcceuil");
-	if (div) {
-		div.style.pointerEvents = "none";
-		div.style.visibility = "hidden";
-	}
-	
 	div = document.getElementById("MenuFicheATraiter");
 	if (div) {
 		div.style.pointerEvents = "none";

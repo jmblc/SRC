@@ -13,7 +13,6 @@ import org.apache.struts.action.DynaActionForm;
 import org.apache.struts.actions.DispatchAction;
 
 import fr.igestion.crm.CrmUtilSession;
-import fr.igestion.crm.IContacts;
 import fr.igestion.crm.SQLDataService;
 import fr.igestion.crm.UtilHtml;
 import fr.igestion.crm.bean.ModeleProcedureMail;
@@ -24,6 +23,7 @@ import fr.igestion.crm.bean.scenario.Point;
 import fr.igestion.crm.bean.scenario.Scenario;
 import fr.igestion.crm.bean.scenario.SousMotif;
 import fr.igestion.crm.bean.scenario.SousPoint;
+import fr.igestion.crm.config.IContacts;
 
 
 public class AdministrationProcedureMailAction extends DispatchAction {

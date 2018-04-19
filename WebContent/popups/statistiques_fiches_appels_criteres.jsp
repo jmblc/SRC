@@ -2,88 +2,102 @@
 <%@ taglib uri="/WEB-INF/struts-bean.tld" prefix="bean" %>
 <%@ taglib uri="/WEB-INF/struts-html.tld" prefix="html" %>
 <%@ taglib uri="/WEB-INF/struts-tiles.tld" prefix="tiles" %>
-<%@ page language="java" import="fr.igestion.crm.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.scenario.*,fr.igestion.crm.bean.contrat.*,fr.igestion.annuaire.bean.*, java.util.*, java.io.*, java.net.*" contentType="text/html;charset=ISO-8859-1"%>
-<%
-	Collection<?> mutuelles_habilitees = (Collection<?>) request.getSession().getAttribute(IContacts._var_session_mutuelles_habilitees);
-	Collection<?> teleacteurs_recherche = (Collection<?>) request.getSession().getAttribute(IContacts._var_session_teleacteurs_recherche);
-	Collection<?> sites = (Collection<?>) request.getSession().getAttribute(IContacts._var_session_sites);
-	Collection<?> codes_clotures_recherche = (Collection<?>) request.getSession().getAttribute(IContacts._var_session_codes_clotures_recherche);
-	Collection<?> references_statistiques = (Collection<?>) request.getSession().getAttribute("references_statistiques");
-	TeleActeur teleActeur = (TeleActeur) request.getSession().getAttribute(IContacts._var_session_teleActeur);
-	String tele_acteur_id = "";
-	if(teleActeur != null){
-		tele_acteur_id = teleActeur.getId();
-	}
-%>
+<%@ taglib uri="/WEB-INF/struts-tiles.tld" prefix="tiles" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/functions" prefix="fn" %>
+<%@ taglib uri="/WEB-INF/custom-taglib.tld" prefix="custom" %>
 
+<%@ page language="java" import="fr.igestion.crm.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.scenario.*,fr.igestion.crm.bean.contrat.*,
+		fr.igestion.annuaire.bean.*, java.util.*, java.io.*, java.net.*" contentType="text/html;charset=ISO-8859-1" isELIgnored="false" %>
 
 <html> 
 	<head> 
 		<title>H.Contacts | Statistiques de fiches d'appel</title>
-		<link rel="shortcut icon" href="<%=request.getContextPath()%>/img/favicon.ico" type="image/x-icon">		
+		<link rel="shortcut icon" href="${contextPath}/img/favicon.ico" type="image/x-icon">		
 			
-		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js"></script>
+		<script language="JavaScript" src="${contextPath}/layout/hcontacts_util.js?v4.2"></script>
 				
 		<!-- CSS DEBUT -->
-		<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/hcontacts_styles.css">
-		<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/jquery.bubblepopup.v2.1.5.css"/>
+		<link rel="stylesheet" type="text/css" href="${contextPath}/layout/hcontacts_styles.css">
+		<link rel="stylesheet" type="text/css" href="${contextPath}/layout/jquery.bubblepopup.v2.1.5.css"/>
 		<!-- date_picker -->
-		<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/themes/datepicker/themes/flick/jquery.ui.all.css">
+		<link rel="stylesheet" type="text/css" href="${contextPath}/layout/themes/datepicker/themes/flick/jquery.ui.all.css">
 		<style type="text/css">
 			.ui-datepicker {font-size: 12px;}
 		 	.ui-datepicker-week-end{color:#C60D2D;}
 		</style>
 		<!-- CSS FIN -->
 		
-		<!-- JQUERY DEBUT -->
-		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/jquery-1.4.2.js"></script>
-		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/jquery.bubblepopup.v2.1.5.min.js"></script>
-		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/jquery.innerfade.js"></script>
-		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/ui/jquery.ui.core.js"></script>
-		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/ui/jquery.ui.widget.js"></script>
-		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/ui/jquery.ui.datepicker.js"></script>
-		<script language="JavaScript" src="<%=request.getContextPath()%>/layout/ui/i18n/jquery.ui.datepicker-fr.js"></script>
-		<!-- JQUERY FIN -->
-		
-		<script>
-			$(document).ready(function(){				
-	
-				$(function() {										
-					$( "#date_debut, #date_fin" ).datepicker({showOn: "button", buttonImage: "../img/calendrier.gif", buttonImageOnly: true});
-			
-					$('img.ui-datepicker-trigger').css({'cursor' : 'pointer', "vertical-align" : 'middle'});
-				});
-				
-			});
-		
-		</script>
+		<c:set var="liste_regroupements_campagnes" value="${param_app.regroupementsCampagnes.listeRegroupements}"/>
+		<c:set var="liste_regroupements_auteurs" value="${param_app.regroupementsAuteurs.listeRegroupements}"/>
 
 	</head> 
 
 <body> 
-<form name="StatistiquesFicheForm">
-<input type="hidden" name="teleacteur_id" value="<%=tele_acteur_id %>" />
+<form name="StatistiquesFicheForm" action="../GetStatistiquesExcel.show">
+<input type="hidden" name="teleacteur_id" value="${teleActeur.id}" />
 <div class="titre" align="center">STATISTIQUES SUR FICHES D'APPEL</div>
+
+<div id="raffraichir" class="raffraichir" title="raffraichir"></div>
 
 <div style="padding-top:30px;padding-bottom:5px;padding-left:0px" class="noir11B"><img src="../img/puce_bloc.gif">CRITERES</div>
 <table cellpadding="2" cellspacing="4">
+
+	<tr style="vertical-align: top;">
+		<td class="bleu11B" style="font-style:italic;">Critères enregistrés</td>
+		<td>
+			<select multiple="multiple" id="criteres" name="criteres_enregistres" style="width:200px;" class="swing_11" size="1" onfocus="this.size=10" onblur="this.size=1">
+				<option value="" selected="selected">- Aucun critère -</option>
+				<optgroup label="Groupes de campagnes">
+					<c:forEach items="${liste_regroupements_campagnes}" var="regroupement_campagnes">
+						<custom:html-tag tagName="option" beanName="regroupement_campagnes" valueProperty="uniqueId" 
+								textProperty="libelle" otherAttributes="type"> </custom:html-tag>
+					</c:forEach>
+				</optgroup>
+				<optgroup label="Groupes d'auteurs">
+					<c:forEach items="${liste_regroupements_auteurs}" var="regroupement_auteurs">
+						<custom:html-tag tagName="option" beanName="regroupement_auteurs" valueProperty="uniqueId" 
+								textProperty="libelle" otherAttributes="type"> </custom:html-tag>
+					</c:forEach>
+				</optgroup>
+			</select>						
+		</td>
+		<td width="40%">			
+			<div class="multiselect" id="selectionCriteres" style="display: none; position:relative;">
+				<div class="info" id="detailCritere"></div>		
+			</div>
+		</td>
+	</tr>
+	
+	<tr>
+		<td colspan="3">&nbsp;</td>
+	</tr>
+	
+	<tr style="vertical-align: top;">
+		<td class="bleu11">Campagne</td>
+		<td>
+			<select multiple="multiple" id="campagne" name="campagne_id" style="width:200px;" class="swing_11" size="1" onfocus="this.size=10" onblur="this.size=1">
+				<option value="" selected="selected">- Toutes les Campagnes -</option>
+				<custom:html-tag tagName="option" beanName="campagnes_creation_et_recherche" valueProperty="id" textProperty="libelle"
+					mapAttributes="actif:1 -> class: item_swing_11_actif: item_swing_11_inactif"> </custom:html-tag>
+			</select>						
+		</td>
+		<td>			
+			<div class="multiselect" id="selectionCampagnes" style="display: none;">
+				<div class="bleu11">
+					Enregistrer les critères (facultatif)<br>Nom : <input type="text" name="regroupement_campagnes" class="item_swing_11_actif">
+				</div>
+			</div>
+		</td>
+	</tr>
 	
 	<tr>
 		<td class="bleu11">Client</td>
 		<td colspan="2">
 			<select name="mutuelle_id" style="width:200px;" class="swing_11">
 				<option value="" selected="selected">- Tous les Clients -</option>
-				<% 	
-					if(mutuelles_habilitees != null && ! mutuelles_habilitees.isEmpty() ){		
-						for(int i=0;i<mutuelles_habilitees.size();i++)	{										
-							Mutuelle mutuelle = (Mutuelle) mutuelles_habilitees.toArray()[i];
-							String classe = (mutuelle.getActif().equals("1") ) ? "item_swing_11_actif":"item_swing_11_inactif";
-				%>
-							<option value="<%=mutuelle.getId()%>" class="<%=classe %>"  > <%=mutuelle.getLibelle()%></option>
-				<%
-						}
-					}
-				%>		
+				<custom:html-tag tagName="option" beanName="mutuelles_habilitees" valueProperty="id" textProperty="libelle"
+					mapAttributes="actif:1 -> class: item_swing_11_actif: item_swing_11_inactif" />
 			</select>						
 		</td>
 	</tr>
@@ -93,59 +107,38 @@
 		<td colspan="2">
 			<select name="site_id" style="width:200px;" class="swing_11">
 				<option value="" selected="selected">- Tous les Sites -</option>
-				<% 	
-					if(sites != null && ! sites.isEmpty() ){		
-						for(int i=0;i<sites.size();i++)	{										
-							LibelleCode site = (LibelleCode) sites.toArray()[i];
-							//String classe = (mutuelle.getActif().equals("1") ) ? "item_swing_11_actif":"item_swing_11_inactif";
-							String classe = "item_swing_11_actif";
-				%>
-							<option value="<%=site.getLibelle()%>" class="<%=classe %>"  > <%=site.getLibelle()%></option>
-				<%
-						}
-					}
-				%>		
-			</select>						
+				<custom:html-tag tagName="option" beanName="sites" valueProperty="libelle" textProperty="libelle"
+					otherAttributes="class:item_swing_11_actif"/>
+				</select>						
 		</td>
 	</tr>
 	
-	<tr>
+	<tr style="vertical-align: top;">
 		<td class="bleu11">Auteur</td>
-		<td colspan="2">
-			<select name="createur_id" style="width:200px;" class="swing_11">
+		<td>
+			<select id="auteur" name="createur_id" style="width:200px;" class="swing_11" multiple="multiple" size="1" onfocus="this.size=10" onblur="this.size=1">
 				<option value="" selected="selected">- Tous les T&eacute;l&eacute;acteurs -</option>
-				<% 	if(teleacteurs_recherche != null && ! teleacteurs_recherche.isEmpty() ){				
-						for(int i=0;i<teleacteurs_recherche.size();i++)	{										
-							TeleActeur teleacteur = (TeleActeur) teleacteurs_recherche.toArray()[i];
-							String classe = (teleacteur.getActif().equals("1") ) ? "item_swing_11_actif":"item_swing_11_inactif";
-				%>
-							<option value="<%=teleacteur.getId()%>" class="<%=classe %>" > <%=teleacteur.getNomPrenom()%></option>
-				<%
-						}
-					}
-				%>		
+				<custom:html-tag tagName="option" beanName="teleacteurs_recherche" valueProperty="id" textProperty="nomPrenom" 
+					mapAttributes="actif:1 -> class : item_swing_11_actif : item_swing_11_inactif" />
 			</select>						
 		</td>
-	</tr>
-	
+		<td>
+			<div class="multiselect" id="selectionAuteurs" style="display: none;">
+				<div class="bleu11">
+					Enregistrer les critères (facultatif)<br>Nom : <input type="text" name="regroupement_auteurs" class="item_swing_11_actif">
+				</div>
+			</div>
+		</td>
+	</tr>	
 	
 	<tr>
 		<td class="bleu11">Type de fiche</td>
 		<td colspan="2">
 			<select name="reference_id" style="width:200px;" class="swing_11">
 				<option value="" selected="selected">- Tous les Types -</option>
-				<% 	
-					if(references_statistiques != null && ! references_statistiques.isEmpty() ){		
-						for(int i=0;i<references_statistiques.size();i++)	{										
-							ReferenceStatistique reference = (ReferenceStatistique) references_statistiques.toArray()[i];
-							String classe = (reference.getActif().equals("1") ) ? "item_swing_11_actif":"item_swing_11_inactif";
-				%>
-							<option value="<%=reference.getId()%>" class="<%=classe %>"  > <%=reference.getLibelle()%></option>
-				<%
-						}
-					}
-				%>		
-			</select>						
+				<custom:html-tag tagName="option" beanName="references_statistiques" valueProperty="id" textProperty="libelle" 
+					mapAttributes="actif:1 -> class : item_swing_11_actif : item_swing_11_inactif" />
+				</select>						
 		</td>
 	</tr>
 		
@@ -154,15 +147,8 @@
 		<td colspan="2">
 			<select name="statut_id" style="width:200px;" class="swing_11">
 				<option value="" selected="selected">- Tous les Statuts -</option>
-				<% 	if(codes_clotures_recherche != null && ! codes_clotures_recherche.isEmpty() ){				
-						for(int i=0;i<codes_clotures_recherche.size();i++)	{										
-							LibelleCode cloture = (LibelleCode) codes_clotures_recherche.toArray()[i];
-				%>
-							<option value="<%=cloture.getCode()%>" > <%=cloture.getLibelle()%></option>
-				<%
-						}
-					}
-				%>		
+				<custom:html-tag tagName="option" beanName="codes_clotures_recherche" valueProperty="code" textProperty="libelle" 
+					otherAttributes="class : item_swing_11_actif" />
 			</select>						
 		</td>
 	</tr>
@@ -199,5 +185,68 @@
 	<input type="button" class="bouton_bleu" value="Valider" onClick="Javascript:doStatistiquesFiches()" style="width:75px">
 </div>
 </form>
-</body> 
+</body>
+
+		<!-- JQUERY DEBUT -->
+		<script language="JavaScript" src="${contextPath}/layout/jquery-1.4.2.js"></script>
+		<script language="JavaScript" src="${contextPath}/layout/jquery.bubblepopup.v2.1.5.min.js"></script>
+		<script language="JavaScript" src="${contextPath}/layout/jquery.innerfade.js"></script>
+		<script language="JavaScript" src="${contextPath}/layout/ui/jquery.ui.core.js"></script>
+		<script language="JavaScript" src="${contextPath}/layout/ui/jquery.ui.widget.js"></script>
+		<script language="JavaScript" src="${contextPath}/layout/ui/jquery.ui.datepicker.js"></script>
+		<script language="JavaScript" src="${contextPath}/layout/ui/i18n/jquery.ui.datepicker-fr.js"></script>
+		<!-- JQUERY FIN -->
+		
+		<script>
+			$(function() {									
+				$( "#date_debut, #date_fin" ).datepicker({showOn: "button", buttonImage: "../img/calendrier.gif", buttonImageOnly: true});
+			
+				$('img.ui-datepicker-trigger').css({'cursor' : 'pointer', "vertical-align" : 'middle'});
+
+				var beforeCritere = "<a onclick=\"afficherCritere('{ref}')\">";
+				var afterCritere = "</a><span class='reverse10' style='float:right'>&nbsp;"
+								 + "	<a class='reverse10' onclick=\"supprimerCritere('{ref}')\" >[Suppr]</a>"
+								 + "</span>";
+				
+				$Binder.lier("campagne", "selectionCampagnes");				
+				$Binder.lier("auteur", "selectionAuteurs");
+				$Binder.lier("criteres", "selectionCriteres", beforeCritere, afterCritere);
+				
+				$("#raffraichir").click(function() {
+					location.reload();
+				});
+
+			});
+			
+			var criteresData = new Map();
+			
+			function afficherCritere(ref) {
+				var data = criteresData.get(ref);
+				if (!data) {
+					$.getJSON("../GetStatistiquesExcel.show?action=afficherCritere&idCritere=" + ref, function(jsonData) {
+						data = jsonData;
+						criteresData.set(ref, data);
+						goAffichage();
+					});					
+				} else {
+					goAffichage();
+				}
+				function goAffichage() {
+					var detailCritere = "";
+					for (var item in data) {
+						detailCritere = detailCritere + data[item] + "<br>" ;
+					}
+					infoBulle(detailCritere, "detailCritere");
+				}
+			}
+		
+			function supprimerCritere(ref) {
+				var confirm = window.confirm("VEUILLEZ CONFIRMER OU ANNULER LA SUPPRESSION");
+				if (confirm) {
+					$.post("../GetStatistiquesExcel.show?action=supprimerCritere&idCritere=" + ref, function() {
+						window.location.href = window.location.href;
+					});
+				}
+			}
+		</script>
 </html> 

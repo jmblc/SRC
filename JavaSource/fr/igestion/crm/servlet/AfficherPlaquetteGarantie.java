@@ -7,7 +7,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import common.Logger;
+import org.apache.log4j.Logger;
+
 import fr.igestion.crm.SQLDataService;
 import fr.igestion.crm.UtilMime;
 import fr.igestion.crm.bean.VersionGarantie;

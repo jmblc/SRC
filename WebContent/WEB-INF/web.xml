@@ -39,8 +39,8 @@
 	</servlet> 	
 	
 	<servlet> 
-		<servlet-name>GetStatistiquesExcel</servlet-name> 
-		<servlet-class>fr.igestion.crm.servlet.StatistiquesExcel</servlet-class> 
+		<servlet-name>RechercheEtStatistiques</servlet-name> 
+		<servlet-class>fr.igestion.crm.servlet.RechercheEtStatistiques</servlet-class> 
 	</servlet> 	
 	
 	<servlet> 
@@ -69,9 +69,19 @@
 	</servlet-mapping> 	
 	
 	<servlet-mapping> 
-		<servlet-name>GetStatistiquesExcel</servlet-name> 
+		<servlet-name>RechercheEtStatistiques</servlet-name> 
 		<url-pattern>/GetStatistiquesExcel.show</url-pattern> 
-	</servlet-mapping> 
+	</servlet-mapping>
+	
+	<servlet-mapping> 
+		<servlet-name>RechercheEtStatistiques</servlet-name> 
+		<url-pattern>/AfficheResultatRecherche.show</url-pattern> 
+	</servlet-mapping>
+	
+	<servlet-mapping> 
+		<servlet-name>RechercheEtStatistiques</servlet-name> 
+		<url-pattern>/Recherche.show</url-pattern> 
+	</servlet-mapping>
 
 	<servlet-mapping> 
 		<servlet-name>LireDocument</servlet-name> 

@@ -5,16 +5,18 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
+import org.apache.log4j.Logger;
 
-import common.Logger;
 import fr.igestion.crm.bean.ComparateurInfosDeSession;
 import fr.igestion.crm.bean.InfosDeSession;
 import fr.igestion.crm.bean.LibelleCode;
 import fr.igestion.crm.bean.TeleActeur;
 import fr.igestion.crm.bean.contrat.EntiteGestion;
+import fr.igestion.crm.config.IContacts;
 
 public class CrmUtilSession {
  
@@ -46,10 +48,12 @@ public class CrmUtilSession {
         }
     }
 
-    public static void mettreObjetsConstantsEnSession(HttpServletRequest request) {
+    public static void mettreObjetsConstantsEnSession(HttpServletRequest request, ServletContext application) {
 
         try {
-
+        	
+        	request.getSession().setAttribute("IContacts", IContacts.getInstance());
+        	
             TeleActeur teleActeur = (TeleActeur) request.getSession()
                     .getAttribute(IContacts._var_session_teleActeur);
             String tele_acteur_id = "";
@@ -65,10 +69,8 @@ public class CrmUtilSession {
             request.getSession().setAttribute(IContacts._var_session_LECTEUR_PARTAGE,
                     LECTEUR_PARTAGE);
 
-            Collection<?> teleacteurs_recherche = SQLDataService
-                    .getTeleActeurs("0", "");
-            request.getSession().setAttribute(IContacts._var_session_teleacteurs_recherche,
-                    teleacteurs_recherche);
+            Collection<?> teleacteurs_recherche = (Collection<?>) application.getAttribute(IContacts._var_session_teleacteurs_recherche);
+            request.getSession().setAttribute(IContacts._var_session_teleacteurs_recherche, teleacteurs_recherche);
 
             Collection<?> mutuelles_habilitees = SQLDataService
                     .getMutuellesHabilitees(tele_acteur_id);
@@ -137,20 +139,19 @@ public class CrmUtilSession {
         }
     }
 
-    public static String getCodeClotureByAlias(String alias,
-            HttpServletRequest request) {
-        String res = "";
-        Collection<LibelleCode> codes_clotures = (Collection<LibelleCode>) request
-                .getSession().getAttribute(IContacts._var_session_codes_clotures);
-        for (int i = 0; i < codes_clotures.size(); i++) {
-            LibelleCode lc = (LibelleCode) codes_clotures.toArray()[i];
-            if (alias.equalsIgnoreCase(lc.getAlias())) {
-                res = lc.getCode();
-                break;
-            }
-        }
-        return res;
+	public static String getCodeClotureByAlias(String alias, HttpServletRequest request) {
+		String res = "";
+		@SuppressWarnings("unchecked")
+		Collection<LibelleCode> codes_clotures = (Collection<LibelleCode>) request.getSession().getAttribute(IContacts._var_session_codes_clotures);
+		for (int i = 0; i < codes_clotures.size(); i++) {
+			LibelleCode lc = (LibelleCode) codes_clotures.toArray()[i];
+			if (alias.equalsIgnoreCase(lc.getAlias())) {
+				res = lc.getCode();
+				break;
+			}
+		}
+		return res;
 
-    }
+	}
 
 }

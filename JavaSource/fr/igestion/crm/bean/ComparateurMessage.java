@@ -7,8 +7,8 @@ import java.util.Locale;
 
 import org.apache.log4j.Logger;
 
-import fr.igestion.crm.IContacts;
 import fr.igestion.crm.UtilDate;
+import fr.igestion.crm.config.IContacts;
 
 
 public class ComparateurMessage implements Comparator<Message> {

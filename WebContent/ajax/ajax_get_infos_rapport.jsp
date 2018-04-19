@@ -8,7 +8,7 @@
 <html> 
 	<head> 
 		<link rel="stylesheet" type="text/css" href="../layout/hcontacts_styles.css">
-		<script language="JavaScript" src="../layout/hcontacts_util.js"></script>
+		<script language="JavaScript" src="../layout/hcontacts_util.js?v4.2"></script>
 		<script type="text/javascript">		
 					
 		function checkStatut(){	

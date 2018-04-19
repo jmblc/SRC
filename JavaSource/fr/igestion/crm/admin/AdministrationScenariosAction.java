@@ -1,8 +1,11 @@
 package fr.igestion.crm.admin;
 
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -11,13 +14,13 @@ import org.apache.struts.action.ActionForward;
 import org.apache.struts.action.ActionMapping;
 import org.apache.struts.action.DynaActionForm;
 import org.apache.struts.actions.DispatchAction;
+import org.apache.struts.upload.FormFile;
 
 import fr.igestion.crm.CrmUtilSession;
-import fr.igestion.crm.IContacts;
 import fr.igestion.crm.SQLDataService;
 import fr.igestion.crm.UtilHtml;
-import fr.igestion.crm.bean.contrat.Mutuelle;
 import fr.igestion.crm.bean.contrat.Camp_EntiteGestion;
+import fr.igestion.crm.bean.contrat.Mutuelle;
 import fr.igestion.crm.bean.scenario.Campagne;
 import fr.igestion.crm.bean.scenario.Motif;
 import fr.igestion.crm.bean.scenario.Point;
@@ -25,6 +28,8 @@ import fr.igestion.crm.bean.scenario.ReferenceStatistique;
 import fr.igestion.crm.bean.scenario.Scenario;
 import fr.igestion.crm.bean.scenario.SousMotif;
 import fr.igestion.crm.bean.scenario.SousPoint;
+import fr.igestion.crm.config.IContacts;
+import fr.igestion.crm.services.GestionScenarioService;
 
 public class AdministrationScenariosAction extends DispatchAction {
       
@@ -169,6 +174,81 @@ public class AdministrationScenariosAction extends DispatchAction {
         daf.set(_consignes_sous_point, "");
         daf.set(_discours_sous_point, "");
     }
+    
+	public ActionForward importExport(ActionMapping mapping, ActionForm form, HttpServletRequest request, HttpServletResponse response) 
+			throws ServletException {
+
+		DynaActionForm daf = (DynaActionForm) form;
+
+		GestionScenarioService service = null;
+		String message = null;
+
+		if (" Importer ".equals(request.getParameter("action"))) {
+
+			try {
+				FormFile file = (FormFile) daf.get("fichierImport");
+				service = new GestionScenarioService();
+				InputStream input = file.getInputStream();
+				message = service.execute(input).get(GestionScenarioService.VAR_MESSAGE);
+				input.close();
+			} catch (Exception e) {
+				e.printStackTrace();
+				throw new ServletException("Impossible de charger le fichier \n" + e.getMessage());
+			}
+			
+		} else if (" Exporter ".equals(request.getParameter("action"))) {
+
+			try {
+				service = new GestionScenarioService();
+				String campagneId = (String) daf.get("campagne_id");
+				String mutuelleId = (String) daf.get("mutuelle_id");
+				try {
+					int id = Integer.parseInt(mutuelleId);
+					if (id < 0) {
+						message = "Export impossible : la mutuelle doit être renseignée";
+					}
+				} catch (NumberFormatException e) {
+					message = "Export impossible : la mutuelle doit être renseignée";
+				}
+				
+				if (message == null) {
+					
+					service.chargerCampagne(campagneId, mutuelleId, null);
+
+					if (service.getCampagne() != null) {
+
+						String nomFichier = service.getCampagne().getLibelle().trim();
+						response.setContentType("application/application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+						response.setHeader("Content-Disposition", "attachment; filename=" + nomFichier + ".xlsx");
+						OutputStream outputStream = response.getOutputStream();
+						message = service.execute(outputStream, campagneId, mutuelleId).get(GestionScenarioService.VAR_MESSAGE);
+
+					} else {
+						message = "Export impossible : aucun scénario trouvé pour la campagne " + campagneId + " associée à la mutuelle " + mutuelleId;
+					}
+				}
+
+			} catch (Exception e) {
+				e.printStackTrace();
+				throw new ServletException("Impossible d'exporter le scénario \n" + e.getMessage());
+			}
+
+		} else if ("selectCampagne".equals(request.getParameter("choix"))) {
+			selectCampagne(mapping, form, request, response);
+			
+		} else {
+
+			init(mapping, form, request, response);
+		}
+		
+		if (message == null) {
+			message = "";
+		}
+		request.setAttribute("message", message);
+		
+		return mapping.findForward(IContacts._import_export_scenarios);
+
+	}
         
     public ActionForward init(ActionMapping mapping, ActionForm form,
             HttpServletRequest request, HttpServletResponse response) {

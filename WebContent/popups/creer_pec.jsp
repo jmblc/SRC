@@ -8,13 +8,46 @@
 
 	ObjetAppelant objet_appelant = (ObjetAppelant) request.getSession().getAttribute("objet_appelant");
 	Object objet = objet_appelant.getObjet();
+	Beneficiaire beneficiaire_aux = (Beneficiaire) session.getAttribute(FicheAppelAction._var_session_beneficiaire_aux);
 	
 	String qualite_beneficiaire = "", nom_adherent = "", prenom_adherent = "", nom_beneficiaire = "", prenom_beneficiaire = "", numero_ss_adherent = "", numero_ss_beneficiaire = "";
-	String type_appelant = "", id_objet_appelant_depart = "";
+	String type_appelant = "", id_objet_appelant_depart = "", id_adherent = "";
 	String fournisseur_id = "";
 	
-	if( objet instanceof Beneficiaire){
-		Beneficiaire beneficiaire = (Beneficiaire) objet;
+	if(objet instanceof Appelant) {
+		Appelant appelant = (Appelant) objet;
+		id_objet_appelant_depart = appelant.getID();
+		type_appelant = appelant.getType().toLowerCase();
+		type_appelant = UtilHtml.supprimerAccents(type_appelant);
+		if(type_appelant.equalsIgnoreCase("assure hors base")){
+			nom_adherent = appelant.getNOM();
+			prenom_adherent = appelant.getPRENOM();
+			numero_ss_adherent = appelant.getNUMEROSS() + " " + appelant.getCLESS();
+			nom_beneficiaire = "";
+			prenom_beneficiaire = "";
+			numero_ss_beneficiaire = "";
+		}
+		else if( type_appelant.equalsIgnoreCase("prof. Sante") ){
+			fournisseur_id = appelant.getID();
+		}
+		else{
+			nom_adherent = "";
+			prenom_adherent = "";
+			numero_ss_adherent = "";
+			nom_beneficiaire = "";
+			prenom_beneficiaire = "";
+			numero_ss_beneficiaire = "";
+		}
+	}	
+	
+	if( objet instanceof Beneficiaire || beneficiaire_aux != null){
+		
+		Beneficiaire beneficiaire;
+		if (beneficiaire_aux != null) {
+			beneficiaire = beneficiaire_aux;
+		} else {
+			beneficiaire = (Beneficiaire) objet;
+		}
 		qualite_beneficiaire = beneficiaire.getQualite();
 		qualite_beneficiaire = UtilHtml.supprimerAccents(qualite_beneficiaire);
 		type_appelant = "assure";
@@ -23,10 +56,10 @@
 		if(! qualite_beneficiaire.toLowerCase().equals("adherent")){
 						
 			//On recherche l'adhérent
-			String adherent_id = beneficiaire.getAdherentId();
+			id_adherent = beneficiaire.getAdherentId();
 			Beneficiaire adherent = null;
-			if(! "".equals(adherent_id)){
-				adherent = SQLDataService.getBeneficiaireById(adherent_id);
+			if(! "".equals(id_adherent)){
+				adherent = SQLDataService.getBeneficiaireById(id_adherent);
 				if(adherent != null){
 					String personne_id = adherent.getPERSONNE_ID();					
 					Personne personne_adherent = SQLDataService.getPersonneById(personne_id);
@@ -44,7 +77,6 @@
 			
 			numero_ss_beneficiaire =  beneficiaire.getNUMEROSS() + " " + beneficiaire.getCLESS();
 			id_objet_appelant_depart = beneficiaire.getID();
-			
 		}
 		//Il s'agit de l'adhérent (beneficiaire = adherent)
 		else{
@@ -55,34 +87,7 @@
 			id_objet_appelant_depart = beneficiaire.getID();
 		}			
 	}
-	else{
-		if(objet instanceof Appelant){
-			Appelant appelant = (Appelant) objet;
-			id_objet_appelant_depart = appelant.getID();
-			type_appelant = appelant.getType().toLowerCase();
-			type_appelant = UtilHtml.supprimerAccents(type_appelant);
-			if(type_appelant.equalsIgnoreCase("assure hors base")){
-				nom_adherent = appelant.getNOM();
-				prenom_adherent = appelant.getPRENOM();
-				numero_ss_adherent = appelant.getNUMEROSS() + " " + appelant.getCLESS();
-				nom_beneficiaire = "";
-				prenom_beneficiaire = "";
-				numero_ss_beneficiaire = "";
-			}
-			else if( type_appelant.equalsIgnoreCase("prof. Sante") ){
-				fournisseur_id = appelant.getID();
-			}
-			else{
-				nom_adherent = "";
-				prenom_adherent = "";
-				numero_ss_adherent = "";
-				nom_beneficiaire = "";
-				prenom_beneficiaire = "";
-				numero_ss_beneficiaire = "";
-			}
-		}	
-	}
-
+	
 %>
 
 <html>
@@ -91,7 +96,7 @@
 	<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/hcontacts_styles.css">
 	<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/jquery.bubblepopup.v2.1.5.css"/>	
 	<link rel="shortcut icon" href="<%=request.getContextPath()%>/img/favicon.ico" type="image/x-icon">		
-	<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js"></script>
+	<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js?v4.2"></script>
 	<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/themes/datepicker/themes/flick/jquery.ui.all.css">
 		<style type="text/css">
 			.ui-datepicker {font-size: 12px;}
@@ -296,28 +301,9 @@
 				</tr>
 							
 			</table>
-	
 				
 		</fieldset>		
 		<!-- ETABLISSEMENT HOSPITALIER FIN -->
-		
-		
-		<!-- TYPEETABLISSEMENT DEBUT -->
-		<!-- 
-		<fieldset style="margin:5px;padding-top:20px">
-			<legend class="noir11B">TYPE D'ETABLISSEMENT</legend>
-			<table width="100%" cellpadding="2" cellspacing="2" border="0">		
-				<tr>
-					<td width="33%"  class="bleu11"><input type="radio" name="type_etablissement" value="0" style="swing" style="margin-left:-4px"/><bean:message key="etspublicshopitaux"/></td>
-					<td width="33%"  class="bleu11"><input type="radio" name="type_etablissement" value="1" style="swing" style="margin-left:-4px"/><bean:message key="etsprivescliniques"/></td>
-					<td>&nbsp;</td>
-				</tr>			
-			</table>
-		</fieldset>	
-			<input type="hidden" name="type_etablissement" value=""/>
-		-->
-		<!-- TYPEETABLISSEMENT FIN -->		
-		
 		
 		<!-- HOSPITALISATION DEBUT -->
 		<fieldset style="margin:5px;padding-top:20px">
@@ -381,23 +367,6 @@
 			</fieldset>
 		<!-- FRAIS CONCERNES PAR LA PRISE EN CHARGE -->
 		
-		<!-- TYPE ENVOI DEBUT -->
-		<!-- 
-			<fieldset style="margin:5px;padding-top:20px">
-				<legend class="noir11B">TYPE D'ENVOI</legend>				
-				<table width="100%" border="0" cellpadding="2" cellspacing="2" >
-					<tr>
-				
-						<td class="bleu11" width="20%">
-							Priorit&eacute;&nbsp;<select name="urgence" class="swing_11"><option value="4" selected="selected">Moyen</option><option value="1">Important</option><option value="7">Faible</option></select>
-						</td>						
-					</tr>									
-				</table>
-			</fieldset>
-		-->	
-		<!-- TYPE ENVOI FIN -->
-		
-		
 		<!-- COMMENTAIRES DEBUT -->
 			<fieldset style="margin:5px;padding-top:20px">
 				<legend class="noir11B">COMMENTAIRES</legend>						
@@ -436,6 +405,7 @@
 			
 	<input type="hidden" name="id_etablissement_hospitalier" value="" />
 	<input type="hidden" name="id_objet_appelant_depart" value="<%=id_objet_appelant_depart %>" />
+	<input type="hidden" name="id_adherent" value="<%= id_adherent %>" />
 	<input type="button" name="bouton_set_etablissement_hospitalier" onclick="Javascript:set_etablissement_hospitalier()" style="display:none">
 	</form>
 	

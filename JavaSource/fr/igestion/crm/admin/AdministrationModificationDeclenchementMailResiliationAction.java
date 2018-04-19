@@ -9,7 +9,7 @@ import org.apache.struts.action.ActionMapping;
 import org.apache.struts.action.DynaActionForm;
 import org.apache.struts.actions.DispatchAction;
 
-import fr.igestion.crm.IContacts;
+import fr.igestion.crm.config.IContacts;
 
 public class AdministrationModificationDeclenchementMailResiliationAction
         extends DispatchAction {

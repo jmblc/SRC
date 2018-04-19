@@ -14,7 +14,6 @@ import org.apache.struts.actions.DispatchAction;
 
 import fr.igestion.crm.CrmUtil;
 import fr.igestion.crm.CrmUtilSession;
-import fr.igestion.crm.IContacts;
 import fr.igestion.crm.SQLDataService;
 import fr.igestion.crm.UtilHtml;
 import fr.igestion.crm.bean.contrat.Mutuelle;
@@ -25,6 +24,7 @@ import fr.igestion.crm.bean.scenario.Point;
 import fr.igestion.crm.bean.scenario.Scenario;
 import fr.igestion.crm.bean.scenario.SousMotif;
 import fr.igestion.crm.bean.scenario.SousPoint;
+import fr.igestion.crm.config.IContacts;
 
 public class AdministrationPECAction extends DispatchAction {
 

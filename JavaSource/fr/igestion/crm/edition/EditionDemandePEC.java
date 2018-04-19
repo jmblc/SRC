@@ -219,7 +219,7 @@ public class EditionDemandePEC {
         tb_beneficiaire.getDefaultCell().setHorizontalAlignment(Element.ALIGN_LEFT);
         tb_beneficiaire.getDefaultCell().setPadding(_padding);
                 
-        tb_beneficiaire.addCell( addTitreBlock("BENEFICIARE"));
+        tb_beneficiaire.addCell( addTitreBlock("BENEFICIAIRE"));
         
         tb_beneficiaire.addCell( addCellNormalNoirGauche("Nom Prénom") );
         tb_beneficiaire.addCell( addCellNormalBleueDroite( laDemandePEC.getNom_prenom_beneficiaire() ) );

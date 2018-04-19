@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<taglib xmlns="http://java.sun.com/xml/ns/javaee"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-jsptaglibrary_2_1.xsd"
+    version="2.1">
+    
+  <description>custom tag library </description>
+  <display-name>Custom Taglib</display-name>
+  <tlib-version>1.0</tlib-version>
+  <short-name>custom</short-name>
+  <uri>/WEB-INF/custom-taglib.tld</uri>
+
+  <tag>
+    <description>
+        Construit une série de balises HTML à partir d'un bean accessible via le pageContext
+    </description>
+    
+    <name>html-tag</name>
+    <tag-class>fr.igestion.taglib.html.HtmlElementGeneratorTag</tag-class>
+    <body-content>JSP</body-content>
+    
+    <attribute>
+        <description>
+			Nom de la balise HTML à générer
+        </description>
+        <name>tagName</name>
+        <required>true</required>
+        <rtexprvalue>false</rtexprvalue>
+    </attribute>
+    
+    <attribute>
+        <description>
+			Nom du bean dont les propriétés sont utilisée pour générer la balise (collection possible).
+			Facultatif : si non précisé, les attributs sont recherchés directement dans le pageContext
+        </description>
+        <name>beanName</name>
+        <required>false</required>
+        <rtexprvalue>false</rtexprvalue>
+    </attribute>
+    
+    <attribute>
+        <description>
+			Nom de la variable qui stocke chaque itération de bean dans le cas où l'attribut "beanName" est une collection
+        </description>
+        <name>var</name>
+        <required>false</required>
+        <rtexprvalue>false</rtexprvalue>
+    </attribute>
+    
+    <attribute>
+        <description>
+			Nom de la propriété représentant l'attribut "id"
+        </description>
+        <name>idProperty</name>
+        <required>false</required>
+        <rtexprvalue>false</rtexprvalue>
+    </attribute>
+    
+    <attribute>
+        <description>
+			Nom de la propriété représentant l'attribut "name"
+        </description>
+        <name>nameProperty</name>
+        <required>false</required>
+        <rtexprvalue>false</rtexprvalue>
+    </attribute>
+    
+    <attribute>
+        <description>
+			Nom de la propriété représentant l'attribut "value"
+        </description>
+        <name>valueProperty</name>
+        <required>false</required>
+        <rtexprvalue>false</rtexprvalue>
+    </attribute>
+    
+    <attribute>
+        <description>
+			Nom de la propriété représentant le texte à incorporer entre la balise ouvrante et fermante
+        </description>
+        <name>textProperty</name>
+        <required>false</required>
+        <rtexprvalue>false</rtexprvalue>
+    </attribute>
+    
+    <attribute>
+        <description>
+			Noms des autres attributs et des propriétés correspondantes.
+			Les différents attributs sont séparés par des espaces.
+			Le nom de chaque attribut et de la propriété correspondante dans le bean sont séparés par ":"
+        </description>
+        <name>otherAttributes</name>
+        <required>false</required>
+        <rtexprvalue>false</rtexprvalue>
+    </attribute>
+    
+    <attribute>
+        <description>
+			Collection d'attributs mappés sous la forme suivante :
+			attr1:val1 -> mapAttr1:mapVal1 | attr2:val2 -> mapAttr2:mapVal2 | ...
+			Les différents attributs mappés sont séparés par "|".
+			Le mapping est indiqué par "->".
+			Les couples clé-valeur sont sont séparés par ":" (égalité) ou "#" (différence).
+        </description>
+        <name>mapAttributes</name>
+        <required>false</required>
+        <rtexprvalue>false</rtexprvalue>
+    </attribute>
+    
+  </tag>
+ 
+</taglib>

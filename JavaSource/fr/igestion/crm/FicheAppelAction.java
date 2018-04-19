@@ -2,6 +2,7 @@ package fr.igestion.crm;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,6 +61,7 @@ import fr.igestion.crm.bean.scenario.Point;
 import fr.igestion.crm.bean.scenario.Scenario;
 import fr.igestion.crm.bean.scenario.SousMotif;
 import fr.igestion.crm.bean.scenario.SousPoint;
+import fr.igestion.crm.config.IContacts;
 import fr.igestion.crm.edition.EditionDemandePEC;
 
 public class FicheAppelAction extends DispatchAction {
@@ -93,6 +95,8 @@ public class FicheAppelAction extends DispatchAction {
     public static final String _var_session_selected_procedureMails="selected_procedureMail";
     public static final String _var_session_siteWeb="siteWeb";
     public static final String _var_session_designation_entite_gestion="designation_entiteGestion";
+    public static final String _var_session_recherche_aux = "recherche_aux";
+    public static final String _var_session_beneficiaire_aux = "beneficiaire_aux";
     
     private static int _maxPagesSalariesItem = 20;
 
@@ -106,6 +110,8 @@ public class FicheAppelAction extends DispatchAction {
         DynaActionForm daf = (DynaActionForm) form;
         String campagne_id = (String) daf.get(CrmForms._campagne_id);
         String mutuelle_id = (String) daf.get(CrmForms._mutuelle_id);
+        
+        request.getSession().removeAttribute(_var_session_beneficiaire_aux);
 
         // Mise à jour de l'objet appelant : objet à null, onglet courant à
         // null, mais ne pas toucher au type
@@ -554,394 +560,335 @@ public class FicheAppelAction extends DispatchAction {
 
         DynaActionForm daf = (DynaActionForm) form;
         daf.set(CrmForms._cle_recherche, "");
+        
+        Boolean isRechercheAux = (Boolean) request.getSession().getAttribute(_var_session_recherche_aux);
+        
         String id_objet = (String) daf.get(CrmForms._id_objet);
-
-        ObjetAppelant objet_appelant = (ObjetAppelant) request.getSession()
-                .getAttribute(_var_session_objet_appelant);
-
-        Beneficiaire beneficiaire = SQLDataService
-                .getBeneficiaireById(id_objet);
-        String personne_id = beneficiaire.getPERSONNE_ID();
-        fr.igestion.crm.bean.contrat.Personne personne = SQLDataService
-                .getPersonneById(personne_id);
-        beneficiaire.setPersonne(personne);
-
-        // Tester confidentialité pour ne pas faire de requêtes inutiles
-        String entite_confidentielle = beneficiaire.getEntiteGestionSensible();
-        Collection<String> ids_entites_gestion_sensibles_du_teleacteur = (Collection<String>) request
-                .getSession().getAttribute(
-                        IContacts._var_session_ids_entites_gestion_sensibles_du_teleacteur);
-
-        if ("0".equals(entite_confidentielle)
-                || ("1".equals(entite_confidentielle) && ids_entites_gestion_sensibles_du_teleacteur
-                        .contains(beneficiaire.getENTITE_GESTION_ID()))) {
-            // L'EG n'est pas sensible oubien l'EG est sensible mais on peut y
-            // accéder
-            objet_appelant.setLisible("1");
-        } else {
-            // Interdiction de lire l'objet
-            objet_appelant.setLisible("0");
+        if (isRechercheAux != null && isRechercheAux) {
+        	id_objet = (String) daf.get("id_beneficiaire");
         }
+        Beneficiaire beneficiaire = SQLDataService.getBeneficiaireById(id_objet);
+        
+		if (beneficiaire != null) {
+			String personne_id = beneficiaire.getPERSONNE_ID();
+			fr.igestion.crm.bean.contrat.Personne personne = SQLDataService.getPersonneById(personne_id);
+			beneficiaire.setPersonne(personne);
+			String adherent_id = SQLDataService.getIdAdherentByIdAssure(id_objet);
+			beneficiaire.setAdherentId(adherent_id);
 
-        if ("1".equals(objet_appelant.getLisible())) {
+			if (isRechercheAux != null && isRechercheAux) {
+				request.getSession().setAttribute(_var_session_beneficiaire_aux, beneficiaire);
+				request.getSession().removeAttribute(FicheAppelAction._var_session_recherche_aux);
+			} else {
 
-            String adherent_id = SQLDataService
-                    .getIdAdherentByIdAssure(id_objet);
-            beneficiaire.setAdherentId(adherent_id);
+				ObjetAppelant objet_appelant = (ObjetAppelant) request.getSession().getAttribute(_var_session_objet_appelant);
 
-            String adresse_id = personne.getADRESSE_ID();
-            Adresse adresse = SQLDataService.getAdresseById(adresse_id);
+				// Tester confidentialité pour ne pas faire de requêtes inutiles
+				String entite_confidentielle = beneficiaire.getEntiteGestionSensible();
+				Collection<String> ids_entites_gestion_sensibles_du_teleacteur = (Collection<String>) request.getSession()
+						.getAttribute(IContacts._var_session_ids_entites_gestion_sensibles_du_teleacteur);
 
-            personne.setAdresse(adresse);
+				if ("0".equals(entite_confidentielle) || ("1".equals(entite_confidentielle) && ids_entites_gestion_sensibles_du_teleacteur.contains(beneficiaire.getENTITE_GESTION_ID()))) {
+					// L'EG n'est pas sensible oubien l'EG est sensible mais on
+					// peut
+					// y
+					// accéder
+					objet_appelant.setLisible("1");
+				} else {
+					// Interdiction de lire l'objet
+					objet_appelant.setLisible("0");
+				}
 
-            String id_rib_prelevement = beneficiaire.getPRELEVEMENT_RIB_ID();
-            RIB rib_prelevement = SQLDataService.getRibById(id_rib_prelevement);
-            beneficiaire.setRibPrelevement(rib_prelevement);
+				if ("1".equals(objet_appelant.getLisible())) {
 
-            String id_rib_virement = beneficiaire.getVIREMENT_RIB_ID();
-            RIB rib_virement = SQLDataService.getRibById(id_rib_virement);
-            beneficiaire.setRibVirement(rib_virement);
+					String adresse_id = personne.getADRESSE_ID();
+					Adresse adresse = SQLDataService.getAdresseById(adresse_id);
 
-            InfosRO infos_ro = SQLDataService.getInfosRO(id_objet);
-            beneficiaire.setInfosRO(infos_ro);
+					personne.setAdresse(adresse);
 
-            PostItBeneficiaire postit = SQLDataService
-                    .getPostItBeneficiaire(adherent_id);
-            beneficiaire.setPostItBeneficiaire(postit);
+					String id_rib_prelevement = beneficiaire.getPRELEVEMENT_RIB_ID();
+					RIB rib_prelevement = SQLDataService.getRibById(id_rib_prelevement);
+					beneficiaire.setRibPrelevement(rib_prelevement);
 
-            DetailObjet detail_objet = SQLDataService
-                    .getDetailBeneficiaireById(adherent_id);
-            objet_appelant.setDetailObjet(detail_objet);
+					String id_rib_virement = beneficiaire.getVIREMENT_RIB_ID();
+					RIB rib_virement = SQLDataService.getRibById(id_rib_virement);
+					beneficiaire.setRibVirement(rib_virement);
 
-            // AYANTS DROIT
-            Collection<AyantDroit> ayantsDroit = null;
-            if (beneficiaire != null) {
-                ayantsDroit = SQLDataService.getAyantsDroit(
-                        beneficiaire.getAdherentId(),
-                        beneficiaire.getMUTUELLE_ID());
-            }
-            beneficiaire.setAyantsDroit(ayantsDroit);
+					InfosRO infos_ro = SQLDataService.getInfosRO(id_objet);
+					beneficiaire.setInfosRO(infos_ro);
 
-            boolean possede_contrats_individuels = false, possede_contrats_collectifs = false;
-            boolean possede_contrats_individuels_a_gestion_collective = false, possede_contrats_en_contentieux = false;
+					PostItBeneficiaire postit = SQLDataService.getPostItBeneficiaire(adherent_id);
+					beneficiaire.setPostItBeneficiaire(postit);
 
-            // CONTRATS DE L'ASSURE
-            // LOGIQUE :
-            // 1)Ramener les contrats bénéficiaire -> ContratBeneficiaire
-            // 2)Pour chaque contrat bénéficiaire, ramener les détails du
-            // contrat bénéficiaire -> DetailContratBeneficiaire + les
-            // couvertures
+					DetailObjet detail_objet = SQLDataService.getDetailBeneficiaireById(adherent_id);
+					objet_appelant.setDetailObjet(detail_objet);
 
-            Collection<ContratBeneficiaire> contrats_actifs = SQLDataService
-                    .getContratsBeneficiaire(beneficiaire.getID(), 1);
-            if (contrats_actifs != null) {
-                Object[] tab_contrats_actifs = contrats_actifs.toArray();
-                for (int i = 0; i < tab_contrats_actifs.length; i++) {
-                    ContratBeneficiaire contrat_beneficiaire = (ContratBeneficiaire) tab_contrats_actifs[i];
+					// AYANTS DROIT
+					Collection<AyantDroit> ayantsDroit = null;
+					if (beneficiaire != null) {
+						ayantsDroit = SQLDataService.getAyantsDroit(beneficiaire.getAdherentId(), beneficiaire.getMUTUELLE_ID());
+					}
+					beneficiaire.setAyantsDroit(ayantsDroit);
 
-                    // Info Contrat Collectif
-                    String info_contrat_collectif = SQLDataService
-                            .getInfoContratCollectifAssure(contrat_beneficiaire
-                                    .getIdContratAdherent());
-                    contrat_beneficiaire
-                            .setInfoContraCollectif(info_contrat_collectif);
+					boolean possede_contrats_individuels = false, possede_contrats_collectifs = false;
+					boolean possede_contrats_individuels_a_gestion_collective = false, possede_contrats_en_contentieux = false;
 
-                    // COLLECTIF,INDIV,ENTREPRISE A GESTION INDIV DEBUT
-                    if (contrat_beneficiaire.getTypeContrat().equalsIgnoreCase(
-                            IContacts._Collectif)) {
-                        possede_contrats_collectifs = true;
-                    } else if (IContacts._Individuel.equalsIgnoreCase(contrat_beneficiaire.getTypeContrat())) {
-                        possede_contrats_individuels = true;
-                    } else if (IContacts._IndivColl
-                            .equalsIgnoreCase(contrat_beneficiaire.getTypeContrat()
-                                    )) {
-                        possede_contrats_individuels_a_gestion_collective = true;
-                    }
-                    // COLLECTIF,INDIV,ENTREPRISE A GESTION INDIV FIN
+					// CONTRATS DE L'ASSURE
+					// LOGIQUE :
+					// 1)Ramener les contrats bénéficiaire ->
+					// ContratBeneficiaire
+					// 2)Pour chaque contrat bénéficiaire, ramener les détails
+					// du
+					// contrat bénéficiaire -> DetailContratBeneficiaire + les
+					// couvertures
 
-                    // POSSEDE UN CONTRAT EN CONTENTIEUX DEBUT
-                    if ("1".equals(contrat_beneficiaire.getContentieux())) {
-                        possede_contrats_en_contentieux = true;
-                    }
-                    // POSSEDE UN CONTRAT EN CONTENTIEUX FIN
+					Collection<ContratBeneficiaire> contrats_actifs = SQLDataService.getContratsBeneficiaire(beneficiaire.getID(), 1);
+					if (contrats_actifs != null) {
+						Object[] tab_contrats_actifs = contrats_actifs.toArray();
+						for (int i = 0; i < tab_contrats_actifs.length; i++) {
+							ContratBeneficiaire contrat_beneficiaire = (ContratBeneficiaire) tab_contrats_actifs[i];
 
-                    Collection<DetailContratBeneficiaire> details_contrats_beneficaire = null;
-                    details_contrats_beneficaire = SQLDataService
-                            .getDetailsContratBeneficiaire(contrat_beneficiaire
-                                    .getIdContratBeneficiaire());
-                    if (details_contrats_beneficaire != null
-                            && details_contrats_beneficaire.isEmpty()) {
-                        details_contrats_beneficaire = new ArrayList<DetailContratBeneficiaire>();
-                        DetailContratBeneficiaire artificiel = new DetailContratBeneficiaire();
-                        artificiel.setLibelleGroupeAssures("");
-                        artificiel.setCodeGroupeAssures("");
-                        details_contrats_beneficaire.add(artificiel);
-                    }
+							// Info Contrat Collectif
+							String info_contrat_collectif = SQLDataService.getInfoContratCollectifAssure(contrat_beneficiaire.getIdContratAdherent());
+							contrat_beneficiaire.setInfoContraCollectif(info_contrat_collectif);
 
-                    contrat_beneficiaire
-                            .setDetailsContrat(details_contrats_beneficaire);
+							// COLLECTIF,INDIV,ENTREPRISE A GESTION INDIV DEBUT
+							if (contrat_beneficiaire.getTypeContrat().equalsIgnoreCase(IContacts._Collectif)) {
+								possede_contrats_collectifs = true;
+							} else if (IContacts._Individuel.equalsIgnoreCase(contrat_beneficiaire.getTypeContrat())) {
+								possede_contrats_individuels = true;
+							} else if (IContacts._IndivColl.equalsIgnoreCase(contrat_beneficiaire.getTypeContrat())) {
+								possede_contrats_individuels_a_gestion_collective = true;
+							}
+							// COLLECTIF,INDIV,ENTREPRISE A GESTION INDIV FIN
 
-                    for (int j = 0; j < details_contrats_beneficaire.size(); j++) {
-                        DetailContratBeneficiaire dc = (DetailContratBeneficiaire) details_contrats_beneficaire
-                                .toArray()[j];
-                        if (!"".equals(dc.getCodeGroupeAssures())
-                                || dc.getId() == null) {
-                            Collection<Couverture> couvertures = SQLDataService
-                                    .getCouverturesBeneficiaire(contrat_beneficiaire
-                                            .getIdContratBeneficiaire());
-                            dc.setCouvertures(couvertures);
-                        }
-                    }
+							// POSSEDE UN CONTRAT EN CONTENTIEUX DEBUT
+							if ("1".equals(contrat_beneficiaire.getContentieux())) {
+								possede_contrats_en_contentieux = true;
+							}
+							// POSSEDE UN CONTRAT EN CONTENTIEUX FIN
 
-                    Collection<GarantieRecherche> garanties = new ArrayList<GarantieRecherche>();
-                    Collection<GarantieRecherche> ids_garanties = SQLDataService
-                            .getIDsGarantiesAssureContrat(
-                                    contrat_beneficiaire.getIdContratAdherent(),
-                                    contrat_beneficiaire.getIdBeneficiaire());
-                    if (ids_garanties != null && !ids_garanties.isEmpty()) {
-                        for (int j = 0; j < ids_garanties.size(); j++) {
-                            GarantieRecherche id_garantie = (GarantieRecherche) ids_garanties
-                                    .toArray()[j];
-                            GarantieRecherche g = SQLDataService
-                                    .getGarantie(id_garantie.getPLA_ID());
-                            if (g != null) {
-                                Collection<VersionGarantie> versions_g = SQLDataService
-                                        .getGarantieVersions(id_garantie
-                                                .getPLA_ID());
-                                g.setVersions(versions_g);
-                                garanties.add(g);
-                            }
-                            contrat_beneficiaire.setGaranties(garanties);
-                        }
-                    }
-                }
-            }
-            beneficiaire.setContratsActifs(contrats_actifs);
+							Collection<DetailContratBeneficiaire> details_contrats_beneficaire = null;
+							details_contrats_beneficaire = SQLDataService.getDetailsContratBeneficiaire(contrat_beneficiaire.getIdContratBeneficiaire());
+							if (details_contrats_beneficaire != null && details_contrats_beneficaire.isEmpty()) {
+								details_contrats_beneficaire = new ArrayList<DetailContratBeneficiaire>();
+								DetailContratBeneficiaire artificiel = new DetailContratBeneficiaire();
+								artificiel.setLibelleGroupeAssures("");
+								artificiel.setCodeGroupeAssures("");
+								details_contrats_beneficaire.add(artificiel);
+							}
 
-            // CONTRATS RADIÉS DU BÉNÉFICIAIRE
-            Collection<ContratBeneficiaire> contrats_radies = SQLDataService
-                    .getContratsBeneficiaire(beneficiaire.getID(), 0);
-            if (contrats_radies != null) {
-                Object[] tab_contrats_radies = contrats_radies.toArray();
-                for (int i = 0; i < tab_contrats_radies.length; i++) {
-                    ContratBeneficiaire contrat_beneficiaire_radie = (ContratBeneficiaire) tab_contrats_radies[i];
+							contrat_beneficiaire.setDetailsContrat(details_contrats_beneficaire);
 
-                    // Info Contrat Collectif
-                    String info_contrat_collectif = SQLDataService
-                            .getInfoContratCollectifAssure(contrat_beneficiaire_radie
-                                    .getIdContratAdherent());
-                    contrat_beneficiaire_radie
-                            .setInfoContraCollectif(info_contrat_collectif);
+							for (int j = 0; j < details_contrats_beneficaire.size(); j++) {
+								DetailContratBeneficiaire dc = (DetailContratBeneficiaire) details_contrats_beneficaire.toArray()[j];
+								if (!"".equals(dc.getCodeGroupeAssures()) || dc.getId() == null) {
+									Collection<Couverture> couvertures = SQLDataService.getCouverturesBeneficiaire(contrat_beneficiaire.getIdContratBeneficiaire());
+									dc.setCouvertures(couvertures);
+								}
+							}
 
-                    // COLLECTIF,INDIV,ENTREPRISE A GESTION INDIV DEBUT
-                    if (IContacts._Collectif
-                            .equalsIgnoreCase(contrat_beneficiaire_radie.getTypeContrat())) {
-                        possede_contrats_collectifs = true;
-                    } else if (IContacts._Individuel
-                            .equalsIgnoreCase(contrat_beneficiaire_radie.getTypeContrat())) {
-                        possede_contrats_individuels = true;
-                    } else if (IContacts._IndivColl
-                            .equalsIgnoreCase(contrat_beneficiaire_radie.getTypeContrat()
-                                    )) {
-                        possede_contrats_individuels_a_gestion_collective = true;
-                    }
-                    // COLLECTIF,INDIV,ENTREPRISE A GESTION INDIV FIN
+							Collection<GarantieRecherche> garanties = new ArrayList<GarantieRecherche>();
+							Collection<GarantieRecherche> ids_garanties = SQLDataService.getIDsGarantiesAssureContrat(contrat_beneficiaire.getIdContratAdherent(),
+									contrat_beneficiaire.getIdBeneficiaire());
+							if (ids_garanties != null && !ids_garanties.isEmpty()) {
+								for (int j = 0; j < ids_garanties.size(); j++) {
+									GarantieRecherche id_garantie = (GarantieRecherche) ids_garanties.toArray()[j];
+									GarantieRecherche g = SQLDataService.getGarantie(id_garantie.getPLA_ID());
+									if (g != null) {
+										Collection<VersionGarantie> versions_g = SQLDataService.getGarantieVersions(id_garantie.getPLA_ID());
+										g.setVersions(versions_g);
+										garanties.add(g);
+									}
+									contrat_beneficiaire.setGaranties(garanties);
+								}
+							}
+						}
+					}
+					beneficiaire.setContratsActifs(contrats_actifs);
 
-                    // POSSEDE UN CONTRAT EN CONTENTIEUX DEBUT
-                    if ("1".equals(contrat_beneficiaire_radie.getContentieux())) {
-                        possede_contrats_en_contentieux = true;
-                    }
-                    // POSSEDE UN CONTRAT EN CONTENTIEUX FIN
+					// CONTRATS RADIÉS DU BÉNÉFICIAIRE
+					Collection<ContratBeneficiaire> contrats_radies = SQLDataService.getContratsBeneficiaire(beneficiaire.getID(), 0);
+					if (contrats_radies != null) {
+						Object[] tab_contrats_radies = contrats_radies.toArray();
+						for (int i = 0; i < tab_contrats_radies.length; i++) {
+							ContratBeneficiaire contrat_beneficiaire_radie = (ContratBeneficiaire) tab_contrats_radies[i];
 
-                    Collection<DetailContratBeneficiaire> details_contrats_beneficaire_radies = null;
-                    details_contrats_beneficaire_radies = SQLDataService
-                            .getDetailsContratBeneficiaire(contrat_beneficiaire_radie
-                                    .getIdContratBeneficiaire());
-                    if (details_contrats_beneficaire_radies != null
-                            && details_contrats_beneficaire_radies.isEmpty()) {
-                        details_contrats_beneficaire_radies = new ArrayList<DetailContratBeneficiaire>();
-                        DetailContratBeneficiaire artificiel = new DetailContratBeneficiaire();
-                        artificiel.setLibelleGroupeAssures("");
-                        artificiel.setCodeGroupeAssures("");
-                        details_contrats_beneficaire_radies.add(artificiel);
-                    }
+							// Info Contrat Collectif
+							String info_contrat_collectif = SQLDataService.getInfoContratCollectifAssure(contrat_beneficiaire_radie.getIdContratAdherent());
+							contrat_beneficiaire_radie.setInfoContraCollectif(info_contrat_collectif);
 
-                    contrat_beneficiaire_radie
-                            .setDetailsContrat(details_contrats_beneficaire_radies);
+							// COLLECTIF,INDIV,ENTREPRISE A GESTION INDIV DEBUT
+							if (IContacts._Collectif.equalsIgnoreCase(contrat_beneficiaire_radie.getTypeContrat())) {
+								possede_contrats_collectifs = true;
+							} else if (IContacts._Individuel.equalsIgnoreCase(contrat_beneficiaire_radie.getTypeContrat())) {
+								possede_contrats_individuels = true;
+							} else if (IContacts._IndivColl.equalsIgnoreCase(contrat_beneficiaire_radie.getTypeContrat())) {
+								possede_contrats_individuels_a_gestion_collective = true;
+							}
+							// COLLECTIF,INDIV,ENTREPRISE A GESTION INDIV FIN
 
-                    for (int j = 0; j < details_contrats_beneficaire_radies
-                            .size(); j++) {
-                        DetailContratBeneficiaire dc = (DetailContratBeneficiaire) details_contrats_beneficaire_radies
-                                .toArray()[j];
-                        if (!"".equals(dc.getCodeGroupeAssures())
-                                || dc.getId() == null) {
-                            Collection<Couverture> couvertures = SQLDataService
-                                    .getCouverturesBeneficiaire(contrat_beneficiaire_radie
-                                            .getIdContratBeneficiaire());
-                            dc.setCouvertures(couvertures);
-                        }
-                    }
+							// POSSEDE UN CONTRAT EN CONTENTIEUX DEBUT
+							if ("1".equals(contrat_beneficiaire_radie.getContentieux())) {
+								possede_contrats_en_contentieux = true;
+							}
+							// POSSEDE UN CONTRAT EN CONTENTIEUX FIN
 
-                    Collection<GarantieRecherche> garanties = new ArrayList<GarantieRecherche>();
-                    Collection<GarantieRecherche> ids_garanties = SQLDataService
-                            .getIDsGarantiesAssureContrat(
-                                    contrat_beneficiaire_radie
-                                            .getIdContratAdherent(),
-                                    contrat_beneficiaire_radie
-                                            .getIdBeneficiaire());
-                    if (ids_garanties != null && !ids_garanties.isEmpty()) {
-                        for (int j = 0; j < ids_garanties.size(); j++) {
-                            GarantieRecherche id_garantie = (GarantieRecherche) ids_garanties
-                                    .toArray()[j];
-                            GarantieRecherche g = SQLDataService
-                                    .getGarantie(id_garantie.getPLA_ID());
-                            if (g != null) {
-                                Collection<VersionGarantie> versions_g = SQLDataService
-                                        .getGarantieVersions(id_garantie
-                                                .getPLA_ID());
-                                g.setVersions(versions_g);
-                                garanties.add(g);
-                            }
-                            contrat_beneficiaire_radie.setGaranties(garanties);
-                        }
-                    }
-                }
-            }
+							Collection<DetailContratBeneficiaire> details_contrats_beneficaire_radies = null;
+							details_contrats_beneficaire_radies = SQLDataService.getDetailsContratBeneficiaire(contrat_beneficiaire_radie.getIdContratBeneficiaire());
+							if (details_contrats_beneficaire_radies != null && details_contrats_beneficaire_radies.isEmpty()) {
+								details_contrats_beneficaire_radies = new ArrayList<DetailContratBeneficiaire>();
+								DetailContratBeneficiaire artificiel = new DetailContratBeneficiaire();
+								artificiel.setLibelleGroupeAssures("");
+								artificiel.setCodeGroupeAssures("");
+								details_contrats_beneficaire_radies.add(artificiel);
+							}
 
-            beneficiaire.setContratsRadies(contrats_radies);
+							contrat_beneficiaire_radie.setDetailsContrat(details_contrats_beneficaire_radies);
 
-            objet_appelant.setContratsCollectifs(possede_contrats_collectifs);
-            objet_appelant.setContratsIndividuels(possede_contrats_individuels);
-            objet_appelant
-                    .setContratsIndividuelsAGestionCollective(possede_contrats_individuels_a_gestion_collective);
-            objet_appelant
-                    .setContratsEnContentieux(possede_contrats_en_contentieux);
+							for (int j = 0; j < details_contrats_beneficaire_radies.size(); j++) {
+								DetailContratBeneficiaire dc = (DetailContratBeneficiaire) details_contrats_beneficaire_radies.toArray()[j];
+								if (!"".equals(dc.getCodeGroupeAssures()) || dc.getId() == null) {
+									Collection<Couverture> couvertures = SQLDataService.getCouverturesBeneficiaire(contrat_beneficiaire_radie.getIdContratBeneficiaire());
+									dc.setCouvertures(couvertures);
+								}
+							}
 
-            // HISTORIQUE  
-            Collection<Historique> historique_assure = null;
-            if (beneficiaire != null) {
-                historique_assure = SQLDataService
-                        .findHistoriqueAdherent(adherent_id);
-            }
-            objet_appelant.setHistorique(historique_assure);
+							Collection<GarantieRecherche> garanties = new ArrayList<GarantieRecherche>();
+							Collection<GarantieRecherche> ids_garanties = SQLDataService.getIDsGarantiesAssureContrat(contrat_beneficiaire_radie.getIdContratAdherent(),
+									contrat_beneficiaire_radie.getIdBeneficiaire());
+							if (ids_garanties != null && !ids_garanties.isEmpty()) {
+								for (int j = 0; j < ids_garanties.size(); j++) {
+									GarantieRecherche id_garantie = (GarantieRecherche) ids_garanties.toArray()[j];
+									GarantieRecherche g = SQLDataService.getGarantie(id_garantie.getPLA_ID());
+									if (g != null) {
+										Collection<VersionGarantie> versions_g = SQLDataService.getGarantieVersions(id_garantie.getPLA_ID());
+										g.setVersions(versions_g);
+										garanties.add(g);
+									}
+									contrat_beneficiaire_radie.setGaranties(garanties);
+								}
+							}
+						}
+					}
 
-            // ABONNEMENT  
-            Collection<AbonnementService> abonnements_assure = null;
-            if (beneficiaire != null) {
-                abonnements_assure = SQLDataService
-                        .findAbonnementAdherent(adherent_id);
-            }
-            objet_appelant.setAbonnements(abonnements_assure);
-            
-            // PRESTATIONS
-            ObjetPrestations objet_prestations = new ObjetPrestations();
-            Map<String, String> criteres = new HashMap<String, String>();
-            criteres.put("IDMUTUELLE", beneficiaire.getMUTUELLE_ID());
-            criteres.put("CODEBENEFICIAIRE", beneficiaire.getCODE());
+					beneficiaire.setContratsRadies(contrats_radies);
 
-            Collection<String> dates_decomptes = SQLDataService
-                    .getDatesDecomptes(criteres);
-            Collection<Decompte> decomptes = null;
-            Collection<Acte> codes_actes = SQLDataService
-                    .getAllCodesActes(criteres);
+					objet_appelant.setContratsCollectifs(possede_contrats_collectifs);
+					objet_appelant.setContratsIndividuels(possede_contrats_individuels);
+					objet_appelant.setContratsIndividuelsAGestionCollective(possede_contrats_individuels_a_gestion_collective);
+					objet_appelant.setContratsEnContentieux(possede_contrats_en_contentieux);
 
-            if (dates_decomptes != null && !dates_decomptes.isEmpty()) {
+					// HISTORIQUE
+					Collection<Historique> historique_assure = null;
+					if (beneficiaire != null) {
+						historique_assure = SQLDataService.findHistoriqueAdherent(adherent_id);
+					}
+					objet_appelant.setHistorique(historique_assure);
 
-                // Decomptes de la première date
-                String premiere_date_decompte = (String) dates_decomptes
-                        .toArray()[0];
-                criteres.put("DATEDECOMPTE", premiere_date_decompte);
-                decomptes = SQLDataService.getDecomptes(criteres);
+					// ABONNEMENT
+					Collection<AbonnementService> abonnements_assure = null;
+					if (beneficiaire != null) {
+						abonnements_assure = SQLDataService.findAbonnementAdherent(adherent_id);
+					}
+					objet_appelant.setAbonnements(abonnements_assure);
 
-                daf.set(CrmForms._prestations_decompte_date, premiere_date_decompte);
+					// PRESTATIONS
+					ObjetPrestations objet_prestations = new ObjetPrestations();
+					Map<String, String> criteres = new HashMap<String, String>();
+					criteres.put("IDMUTUELLE", beneficiaire.getMUTUELLE_ID());
+					criteres.put("CODEBENEFICIAIRE", beneficiaire.getCODE());
 
-                if (decomptes != null && !decomptes.isEmpty()) {
-                    // On parcourt les décomptes et pour chacun d'eux
-                    // On ramène les prestations et on fait les totaux des
-                    // dépenses
-                    for (int i = 0; i < decomptes.size(); i++) {
-                        Decompte decompte = (Decompte) decomptes.toArray()[i];
-                        Collection<Prestation> prestations = SQLDataService
-                                .getPrestationsDecompte(decompte.getId(), "",
-                                        "");
-                        decompte.setPrestations(prestations);
-                        if (prestations != null && !prestations.isEmpty()) {
-                            float totalDepenses = 0;
-                            float totalRembSS = 0;
-                            float totalRembMutuelle = 0;
-                            for (int j = 0; j < prestations.size(); j++) {
-                                Prestation prestation = (Prestation) prestations
-                                        .toArray()[j];
-                                totalDepenses += prestation.getDepense();
-                                totalRembSS += prestation
-                                        .getRemboursementSecu();
-                                totalRembMutuelle += prestation
-                                        .getRemboursementMutuelle();
-                            }
-                            decompte.setTotalDepenses(totalDepenses);
-                            decompte.setTotalRemboursementsSecu(totalRembSS);
-                            decompte.setTotalRemboursementsMutuelle(totalRembMutuelle);
-                        }
-                    }
-                }
-            }
+					Collection<String> dates_decomptes = SQLDataService.getDatesDecomptes(criteres);
+					Collection<Decompte> decomptes = null;
+					Collection<Acte> codes_actes = SQLDataService.getAllCodesActes(criteres);
 
-            objet_prestations.setCodesActes(codes_actes);
-            objet_prestations.setDatesDecomptes(dates_decomptes);
-            objet_prestations.setDecomptes(decomptes);
-            objet_appelant.setObjetPrestations(objet_prestations);
+					if (dates_decomptes != null && !dates_decomptes.isEmpty()) {
 
-            // ENTREPRISE DE L'ASSURE
-            String etablissement_id = beneficiaire.getETABLISSEMENT_ID();
-            Etablissement etablissement = SQLDataService
-                    .getEtablissementById(etablissement_id);
+						// Decomptes de la première date
+						String premiere_date_decompte = (String) dates_decomptes.toArray()[0];
+						criteres.put("DATEDECOMPTE", premiere_date_decompte);
+						decomptes = SQLDataService.getDecomptes(criteres);
 
-            if (etablissement != null) {
-                // ADRESSE DE L'ENTREPRISE
-                String adresse_entreprise_id = etablissement.getADRESSE_ID();
-                Adresse adresse_entreprise = SQLDataService
-                        .getAdresseById(adresse_entreprise_id);
-                etablissement.setAdresse(adresse_entreprise);
+						daf.set(CrmForms._prestations_decompte_date, premiere_date_decompte);
 
-                // CORRESPONDANT
-                Correspondant correspondant = new Correspondant();
-                String correpondant_adresse_id = etablissement
-                        .getCorrespondantAdresseId();
-                String correpondant_personne_id = etablissement
-                        .getCorrespondantPersonneId();
-                if (!"".equals(correpondant_adresse_id)) {
-                    Adresse adresse_correspondant = SQLDataService
-                            .getAdresseById(correpondant_adresse_id);
-                    correspondant.setAdresse(adresse_correspondant);
-                }
-                if (!"".equals(correpondant_personne_id)) {
-                    fr.igestion.crm.bean.contrat.Personne personne_correpondant = SQLDataService
-                            .getPersonneById(correpondant_personne_id);
-                    correspondant.setPersonne(personne_correpondant);
-                }
-                etablissement.setCorrespondant(correspondant);
-            }
+						if (decomptes != null && !decomptes.isEmpty()) {
+							// On parcourt les décomptes et pour chacun d'eux
+							// On ramène les prestations et on fait les totaux
+							// des
+							// dépenses
+							for (int i = 0; i < decomptes.size(); i++) {
+								Decompte decompte = (Decompte) decomptes.toArray()[i];
+								Collection<Prestation> prestations = SQLDataService.getPrestationsDecompte(decompte.getId(), "", "");
+								decompte.setPrestations(prestations);
+								if (prestations != null && !prestations.isEmpty()) {
+									float totalDepenses = 0;
+									float totalRembSS = 0;
+									float totalRembMutuelle = 0;
+									for (int j = 0; j < prestations.size(); j++) {
+										Prestation prestation = (Prestation) prestations.toArray()[j];
+										totalDepenses += prestation.getDepense();
+										totalRembSS += prestation.getRemboursementSecu();
+										totalRembMutuelle += prestation.getRemboursementMutuelle();
+									}
+									decompte.setTotalDepenses(totalDepenses);
+									decompte.setTotalRemboursementsSecu(totalRembSS);
+									decompte.setTotalRemboursementsMutuelle(totalRembMutuelle);
+								}
+							}
+						}
+					}
 
-            beneficiaire.setEtablissement(etablissement);
+					objet_prestations.setCodesActes(codes_actes);
+					objet_prestations.setDatesDecomptes(dates_decomptes);
+					objet_prestations.setDecomptes(decomptes);
+					objet_appelant.setObjetPrestations(objet_prestations);
 
-        }
+					// ENTREPRISE DE L'ASSURE
+					String etablissement_id = beneficiaire.getETABLISSEMENT_ID();
+					Etablissement etablissement = SQLDataService.getEtablissementById(etablissement_id);
 
-        if (objet_appelant.getOngletCourant() != null
-                && IContacts._ONGLET_ASSURE_COMPO_FAMILIALE.equalsIgnoreCase(objet_appelant.getOngletCourant()
-                        )) {
-            objet_appelant.setOngletCourant(IContacts._ONGLET_ASSURE_COMPO_FAMILIALE);
-        } else {
-            objet_appelant.setOngletCourant(IContacts._ONGLET_ASSURE);
-        }
+					if (etablissement != null) {
+						// ADRESSE DE L'ENTREPRISE
+						String adresse_entreprise_id = etablissement.getADRESSE_ID();
+						Adresse adresse_entreprise = SQLDataService.getAdresseById(adresse_entreprise_id);
+						etablissement.setAdresse(adresse_entreprise);
 
-        objet_appelant.setType("Assuré");
-        objet_appelant.setObjet(beneficiaire);
-        request.getSession().setAttribute(_var_session_objet_appelant, objet_appelant);
+						// CORRESPONDANT
+						Correspondant correspondant = new Correspondant();
+						String correpondant_adresse_id = etablissement.getCorrespondantAdresseId();
+						String correpondant_personne_id = etablissement.getCorrespondantPersonneId();
+						if (!"".equals(correpondant_adresse_id)) {
+							Adresse adresse_correspondant = SQLDataService.getAdresseById(correpondant_adresse_id);
+							correspondant.setAdresse(adresse_correspondant);
+						}
+						if (!"".equals(correpondant_personne_id)) {
+							fr.igestion.crm.bean.contrat.Personne personne_correpondant = SQLDataService.getPersonneById(correpondant_personne_id);
+							correspondant.setPersonne(personne_correpondant);
+						}
+						etablissement.setCorrespondant(correspondant);
+					}
 
-        // Site WEB
-        EntiteGestion lEntiteGestion = SQLDataService.getDetailEntiteGestionById( beneficiaire.getENTITE_GESTION_ID());
-        request.getSession().setAttribute(_var_session_siteWeb, lEntiteGestion.getSiteWeb());
-        request.getSession().setAttribute(_var_session_designation_entite_gestion, lEntiteGestion.getLibelle());
+					beneficiaire.setEtablissement(etablissement);
+
+				}
+
+				if (objet_appelant.getOngletCourant() != null && IContacts._ONGLET_ASSURE_COMPO_FAMILIALE.equalsIgnoreCase(objet_appelant.getOngletCourant())) {
+					objet_appelant.setOngletCourant(IContacts._ONGLET_ASSURE_COMPO_FAMILIALE);
+				} else {
+					objet_appelant.setOngletCourant(IContacts._ONGLET_ASSURE);
+				}
+
+				objet_appelant.setType("Assuré");
+				objet_appelant.setObjet(beneficiaire);
+				request.getSession().setAttribute(_var_session_objet_appelant, objet_appelant);
+
+				// Site WEB
+				EntiteGestion lEntiteGestion = SQLDataService.getDetailEntiteGestionById(beneficiaire.getENTITE_GESTION_ID());
+				request.getSession().setAttribute(_var_session_siteWeb, lEntiteGestion.getSiteWeb());
+				request.getSession().setAttribute(_var_session_designation_entite_gestion, lEntiteGestion.getLibelle());
+			}
+		}
         
         return mapping.findForward(IContacts._ficheAppel);
     }
@@ -1237,28 +1184,33 @@ public class FicheAppelAction extends DispatchAction {
 
     }
 
-    public ActionForward nouvelleRechercheAssure(ActionMapping mapping,
-            ActionForm form, HttpServletRequest request,
+    public ActionForward nouvelleRechercheAssure(ActionMapping mapping, ActionForm form, HttpServletRequest request,
             HttpServletResponse response) {
 
         if (!CrmUtilSession.isSessionActive(request.getSession())) {
             return mapping.findForward(IContacts._expirationSession);
         }
+        
+        String isBeneficiaireAux = request.getParameter("is_beneficiaire_aux");        
+        
+        if (Boolean.valueOf(isBeneficiaireAux)) {
+        	request.getSession().removeAttribute(_var_session_beneficiaire_aux);
+        	
+		} else {
 
-        DynaActionForm daf = (DynaActionForm) form;
-        daf.set(CrmForms._cle_recherche, "");
+			DynaActionForm daf = (DynaActionForm) form;
+			daf.set(CrmForms._cle_recherche, "");
 
-        ObjetAppelant objet_appelant = (ObjetAppelant) request.getSession()
-                .getAttribute(_var_session_objet_appelant);
-        objet_appelant.setObjet(null);
-        objet_appelant.setOngletCourant(null);
-        objet_appelant.setHistorique(null);
-        objet_appelant.setObjetPrestations(null);
-        objet_appelant.setDetailObjet(null);
-        objet_appelant.setType("Assuré");
-        request.getSession().setAttribute(_var_session_objet_appelant, objet_appelant);
-        daf.set(CrmForms._id_objet, null);
-
+			ObjetAppelant objet_appelant = (ObjetAppelant) request.getSession().getAttribute(_var_session_objet_appelant);
+			objet_appelant.setObjet(null);
+			objet_appelant.setOngletCourant(null);
+			objet_appelant.setHistorique(null);
+			objet_appelant.setObjetPrestations(null);
+			objet_appelant.setDetailObjet(null);
+			objet_appelant.setType("Assuré");
+			request.getSession().setAttribute(_var_session_objet_appelant, objet_appelant);
+			daf.set(CrmForms._id_objet, null);
+		}
         return mapping.findForward(IContacts._ficheAppel);
     }
 
@@ -2011,8 +1963,7 @@ public class FicheAppelAction extends DispatchAction {
 		
 		if (StringUtils.isNotEmpty(id_objet)) {
 			
-			ObjetAppelant objet_appelant = (ObjetAppelant) request.getSession()
-					.getAttribute(FicheAppelAction._var_session_objet_appelant);
+			ObjetAppelant objet_appelant = (ObjetAppelant) request.getSession().getAttribute(FicheAppelAction._var_session_objet_appelant);
 
 			Object objet = objet_appelant.getObjet();
 
@@ -2038,136 +1989,64 @@ public class FicheAppelAction extends DispatchAction {
 			}
 		}
         
-        String libelle_cloture = (String) daf.get(CrmForms._texte_generique);
-        String transferer_fiche = (String) daf.get(CrmForms._transferer_fiche);
-        String destinataire_transfert = (String) daf
-                .get(CrmForms._destinataire_transfert);
-
+        String libelle_cloture = (String) daf.get(CrmForms._cloture_code);
+        String destinataire_transfert = (String) daf.get(CrmForms._destinataire_transfert);
         Boolean procedure_mail = (Boolean) daf.get(CrmForms._procedure_mail_cree);
         Boolean emission_pec = (Boolean) daf.get(CrmForms._demande_pec_cree);
 
         Appel appel = (Appel) request.getSession().getAttribute(_var_session_appel);
         String appel_id = (String) appel.getID();
-        String code_cloture_souhaite = "";
+        String code_cloture_souhaite = CrmUtilSession.getCodeClotureByAlias(libelle_cloture, request);
         StringBuilder resultat_cloture = null;
 
-        libelle_cloture = UtilHtml.supprimerAccents(libelle_cloture)
-                .toUpperCase();
 
-        if ("HORS CIBLE".contains(libelle_cloture)) {
-            code_cloture_souhaite = CrmUtilSession.getCodeClotureByAlias(IContacts._HORSCIBLE,
-                    request);
-            
+        List<String> listeAliasAbandon = Arrays.asList(IContacts._HORSCIBLE, IContacts._AUTRECAMPAGNE);
+        List<String> listeAliasPriseEnCompte = Arrays.asList(IContacts._CLOTURE, IContacts._APPEL_SORTANT, IContacts._TRANSFERT_INTERNE, IContacts._TRANSFERT_EXTERNE);
+        List<String> listeAliasATraiter = Arrays.asList(IContacts._A_TRAITER);
+        
+        if (listeAliasAbandon.contains(libelle_cloture)) { 
+        	
             if ( emission_pec == Boolean.TRUE ) {
                   SQLDataService.supprimerDemandePEC(appel_id);
-            }
-            
-            resultat_cloture = SQLDataService.cloturerFicheAppelEnHorsCible(
-                    appel_id, code_cloture_souhaite, daf, request.getSession());
-
+            }            
+            resultat_cloture = SQLDataService.cloturerFicheAppelEnHorsCible(appel_id, code_cloture_souhaite, daf, request.getSession());
             return mapping.findForward(IContacts._accueil);
-        }
-        else if("AUTRE CAMPAGNE".contains(libelle_cloture)) {
-            code_cloture_souhaite = CrmUtilSession.getCodeClotureByAlias(IContacts._AUTRECAMPAGNE,
-                    request);
             
-            if ( emission_pec == Boolean.TRUE ) {
-                SQLDataService.supprimerDemandePEC(appel_id);
-            }
-            
-            resultat_cloture = SQLDataService.cloturerFicheAppelEnHorsCible(
-                    appel_id, code_cloture_souhaite, daf, request.getSession());
+		} else if (listeAliasPriseEnCompte.contains(libelle_cloture)) {
 
-            return mapping.findForward(IContacts._accueil);
-        }
-        else if (libelle_cloture.contains("CLOTURE")) {
-            code_cloture_souhaite = CrmUtilSession.getCodeClotureByAlias("CLOTURE",
-                    request);
+			if (!"".equals(destinataire_transfert)) {				
+				resultat_cloture = SQLDataService.cloturerFicheAppelEnClotureOuEnAppelSortant(appel_id, code_cloture_souhaite, Boolean.FALSE, daf, request.getSession());
+				// On construit le fichier PDF
+				File fichier = CrmUtil.getFicheAppelPDF(appel_id);
+				// On logue la fiche de Transfert
+				SQLDataService.creerEvenementFicheDeTransfert(appel_id, daf, request.getSession(), fichier);
+				// On envoie le fichier au destinataire
+				CrmUtil.envoyerFicheDeTransfert(appel_id, destinataire_transfert, fichier, request);
+				
+			} else {				
+				resultat_cloture = SQLDataService.cloturerFicheAppelEnClotureOuEnAppelSortant(appel_id, code_cloture_souhaite, Boolean.TRUE, daf, request.getSession());
+			}
+			
+		} else if (listeAliasATraiter.contains(libelle_cloture)) {
+			
+			// Clôture de la fiche d'appel et création événement H.Courriers au statut A TRAITER
+			resultat_cloture = SQLDataService.cloturerFicheAppelEnClotureOuEnAppelSortant(appel_id, code_cloture_souhaite, Boolean.FALSE, daf, request.getSession());
+			// On construit le fichier PDF
+			File fichier = CrmUtil.getFicheAppelPDF(appel_id);
+			// On crée l'événement pour H.Courrier
+			resultat_cloture = SQLDataService.creerEvenementPourHCourriers(appel_id, daf, request.getSession(), fichier);
 
-            if ("1".equals(transferer_fiche)
-                    && !"".equals(destinataire_transfert)) {
-
-                resultat_cloture = SQLDataService
-                        .cloturerFicheAppelEnClotureOuEnAppelSortant(appel_id,
-                                code_cloture_souhaite, Boolean.FALSE, daf,
-                                request.getSession());
-
-                // On construit le fichier PDF
-                File fichier = CrmUtil.getFicheAppelPDF(appel_id);
-                // On logue la fiche de Transfert
-                SQLDataService.creerEvenementFicheDeTransfert(appel_id, daf,
-                        request.getSession(), fichier);
-                // On envoie le fichier au destinataire
-                CrmUtil.envoyerFicheDeTransfert(appel_id,
-                        destinataire_transfert, fichier, request);
-            } else {
-                resultat_cloture = SQLDataService
-                        .cloturerFicheAppelEnClotureOuEnAppelSortant(appel_id,
-                                code_cloture_souhaite, Boolean.TRUE, daf,
-                                request.getSession());
-            }
-
-        } else if (libelle_cloture.contains("APPEL SORTANT")) {
-            code_cloture_souhaite = CrmUtilSession.getCodeClotureByAlias(
-                    "APPELSORTANT", request);
-
-            if ("1".equals(transferer_fiche)
-                    && !"".equals(destinataire_transfert)) {
-                
-                resultat_cloture = SQLDataService
-                        .cloturerFicheAppelEnClotureOuEnAppelSortant(appel_id,
-                                code_cloture_souhaite, Boolean.FALSE, daf,
-                                request.getSession());
-                
-                // On construit le fichier PDF
-                File fichier = CrmUtil.getFicheAppelPDF(appel_id);
-                // On logue la fiche de Transfert
-                SQLDataService.creerEvenementFicheDeTransfert(appel_id, daf,
-                        request.getSession(), fichier);
-                // On envoie le fichier au destinataire
-                CrmUtil.envoyerFicheDeTransfert(appel_id,
-                        destinataire_transfert, fichier, request);
-            }
-            else{
-                resultat_cloture = SQLDataService
-                        .cloturerFicheAppelEnClotureOuEnAppelSortant(appel_id,
-                                code_cloture_souhaite, Boolean.TRUE, daf,
-                                request.getSession());
-            }
-
-        } else if (libelle_cloture.contains("A TRAITER")) {
-            // On clôture la fiche d'appel et on crée un événement avec statut à
-            // TRAITER
-
-            code_cloture_souhaite = CrmUtilSession.getCodeClotureByAlias("CLOTURE",
-                    request);
-            resultat_cloture = SQLDataService
-                    .cloturerFicheAppelEnClotureOuEnAppelSortant(appel_id,
-                            code_cloture_souhaite, Boolean.FALSE, daf,
-                            request.getSession());
-
-            // On construit le fichier PDF
-            File fichier = CrmUtil.getFicheAppelPDF(appel_id);
-
-            // On crée l'événement pour H.Courrier
-            resultat_cloture = SQLDataService.creerEvenementPourHCourriers(
-                    appel_id, daf, request.getSession(), fichier);
-
-            if ("1".equals(transferer_fiche)
-                    && !"".equals(destinataire_transfert)) {
-                // On logue la fiche de Transfert
-                SQLDataService.creerEvenementFicheDeTransfert(appel_id, daf,
-                        request.getSession(), fichier);
-                // On envoie le fichier au destinataire
-                CrmUtil.envoyerFicheDeTransfert(appel_id,
-                        destinataire_transfert, fichier, request);
-            }
-        }
+			if (!"".equals(destinataire_transfert)) {
+				// On logue la fiche de Transfert
+				SQLDataService.creerEvenementFicheDeTransfert(appel_id, daf, request.getSession(), fichier);
+				// On envoie le fichier au destinataire
+				CrmUtil.envoyerFicheDeTransfert(appel_id, destinataire_transfert, fichier, request);
+			}
+		}
 
         // Traitement mail informatif
         if (procedure_mail == Boolean.TRUE) {
-            if ("HORS CIBLE".contains(libelle_cloture) ||
-                "AUTRE CAMPAGNE".contains(libelle_cloture)    ) {
+            if (listeAliasAbandon.contains(libelle_cloture)) {
                 SQLDataService.supprimerProcedureMail(appel_id);
             } else {
                 SQLDataService.emettreProcedureMail(appel_id);

@@ -1,4 +1,5 @@
-<%@ page language="java" import="fr.igestion.crm.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.contrat.*,fr.igestion.crm.bean.scenario.*,fr.igestion.annuaire.bean.*,java.util.*,java.io.*,java.net.*" contentType="text/html;charset=ISO-8859-1"%>
+<%@ page language="java" import="fr.igestion.crm.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.contrat.*,fr.igestion.crm.bean.scenario.*,
+		fr.igestion.annuaire.bean.*,java.util.*,java.io.*,java.net.*,fr.igestion.crm.config.*" contentType="text/html;charset=ISO-8859-1"%>
 <jsp:directive.include file="habilitations_user.jsp"/>
 <%
 	TeleActeur teleActeur = (TeleActeur) request.getSession().getAttribute(IContacts._var_session_teleActeur);

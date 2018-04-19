@@ -7,6 +7,8 @@ import fr.igestion.crm.bean.ModeleProcedureMail;
 import fr.igestion.crm.bean.pec.ModelePEC;
 
 public class ItemScenario extends IdLibelleCode{
+	
+	public final static String ACTION_DELETE = "D", ACTION_UPDATE = "U", ACTION_INSERT = "I";
     
     private String CONSIGNES = "";
     private String DISCOURS = "";
@@ -17,6 +19,7 @@ public class ItemScenario extends IdLibelleCode{
     private ModelePEC pec = null;
     private Collection<ModeleProcedureMail> proceduresMail = null;
     private String mailResiliation = "";
+    private String actionAFaire = null;
 
     public ItemScenario() {
     }
@@ -92,5 +95,17 @@ public class ItemScenario extends IdLibelleCode{
     public void setMailResiliation(String mailResiliation) {
         this.mailResiliation = mailResiliation;
     }
+
+	public String getActionAFaire() {
+		return actionAFaire;
+	}
+
+	public void setActionAFaire(String actionAFaire) {
+		this.actionAFaire = actionAFaire;
+	}
+	
+	public String toString() {
+		return getId().concat("-").concat(getLibelle());
+	}
     
 }

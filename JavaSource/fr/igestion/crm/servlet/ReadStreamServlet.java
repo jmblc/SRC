@@ -2,7 +2,6 @@ package fr.igestion.crm.servlet;
 
 import java.io.IOException;
 import java.sql.Blob;
-import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 

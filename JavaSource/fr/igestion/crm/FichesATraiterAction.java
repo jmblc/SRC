@@ -16,6 +16,7 @@ import org.apache.struts.actions.DispatchAction;
 import fr.igestion.crm.bean.Appel;
 import fr.igestion.crm.bean.ComparateurFiche;
 import fr.igestion.crm.bean.TeleActeur;
+import fr.igestion.crm.config.IContacts;
 
 public class FichesATraiterAction extends DispatchAction {
 

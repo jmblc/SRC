@@ -94,5 +94,21 @@ public class Campagne {
 	public void setCamp_EntiteGestions(Collection<Camp_EntiteGestion> camp_EntiteGestions) {
 		Camp_EntiteGestions = camp_EntiteGestions;
 	}
+	
+	@Override
+	public boolean equals(Object obj) {
+		
+		boolean retour = false;
+		
+		if (obj instanceof Campagne) {
+			Campagne otherCampagne = (Campagne) obj;
+			retour = id != null;
+			retour &= id.equals(otherCampagne.getId());
+			retour &= libelle != null; 
+			retour &= libelle.equals(otherCampagne.getLibelle()); 
+		}
+		
+		return retour; 
+	}
 
 }

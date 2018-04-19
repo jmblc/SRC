@@ -6,6 +6,16 @@
 
 <%
 			String cle_recherche = (String) request.getParameter("cle_recherche");
+			request.getSession().removeAttribute(FicheAppelAction._var_session_recherche_aux);
+			
+			Boolean isRechercheAux = false;			
+			if (cle_recherche == null) {
+				cle_recherche = (String) request.getParameter("cle_recherche_aux");
+				if (cle_recherche != null) {
+					isRechercheAux = true;
+       				request.getSession().setAttribute(FicheAppelAction._var_session_recherche_aux, true);
+       			}
+			}
 			
 			request.getSession().setAttribute("sens_tri_assures", "ASC");	 
 			Collection<?>  assures_recherches = (Collection<?>) fr.igestion.crm.SQLDataService.rechercheAssures(request);
@@ -31,18 +41,18 @@
 			label = "<br><br><br><label class='noir12'>Votre recherche ram&egrave;ne trop de r&eacute;sultats : </labe><label class='bordeau12'>" + taille + "</label><br><br><br><label class='noir12'>Veuillez affiner votre recherche svp.</label>";
 				}
 				else{
-			tableau_formate = CrmUtil.getTableauAssuresRecherches(assures_recherches);
+			tableau_formate = CrmUtil.getTableauAssuresRecherches(assures_recherches, isRechercheAux);
 			label = "<label class='noir12'>1</label> <label class='bleu12'>assur&eacute; trouv&eacute; pour </label>";
 			label += "<label class='noir12B'><i> " + cle_recherche + "</i>.</label>";
 				}
 			}
 			else if( nbr<fr.igestion.crm.SQLDataService._Max_Rows){
-				tableau_formate = CrmUtil.getTableauAssuresRecherches(assures_recherches);
+				tableau_formate = CrmUtil.getTableauAssuresRecherches(assures_recherches, isRechercheAux);
 				label = "<label class='noir12'>" + nbr + "</label> " +  "<label class='bleu12'>assur&eacute;s trouv&eacute;s pour </label>";
 				label += "<label class='noir12B'><i> " + cle_recherche + "</i>.</label>";
 			}
 			else{
-				tableau_formate = CrmUtil.getTableauAssuresRecherches(assures_recherches);
+				tableau_formate = CrmUtil.getTableauAssuresRecherches(assures_recherches, isRechercheAux);
 				label = "<label class='alerte_bordeau12B'>Attention trop de résultats pour </label>";
 				label += "<label class='noir12B'><i> " + cle_recherche + " </i></label><label class='alerte_bordeau12B'>...</label></br>";
 				label += "<label class='alerte_bordeau12B'>Seuls "+fr.igestion.crm.SQLDataService._Max_Rows+" assur&eacute;s correspondant aux premiers contrats trouvés sont affichés.</label></br></br>";
@@ -53,7 +63,7 @@
 <head>
 	<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/hcontacts_styles.css">
 	<link rel="shortcut icon" href="<%=request.getContextPath()%>/img/favicon.ico" type="image/x-icon">		
-	<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js"></script>
+	<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js?v4.2"></script>
 </head>
 <body>
 	<center><div id="idwait" style="visibility:hidden"><img src="<%=request.getContextPath()%>/img/ajax-loaderLittle.gif"></div></center>

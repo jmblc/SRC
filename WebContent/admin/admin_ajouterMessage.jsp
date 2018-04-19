@@ -9,7 +9,7 @@
 <html>
 <head>
 <title>H.Contacts | Administration</title>
-	<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js"></script>
+	<script language="JavaScript" src="<%=request.getContextPath()%>/layout/hcontacts_util.js?v4.2"></script>
 				
 		<!-- CSS DEBUT -->
 		<link rel="stylesheet" type="text/css" href="<%=request.getContextPath()%>/layout/hcontacts_styles.css">

@@ -7,8 +7,8 @@ import java.util.Map;
 
 import org.apache.log4j.Logger;
 
-import fr.igestion.crm.IContacts;
 import fr.igestion.crm.UtilDate;
+import fr.igestion.crm.config.IContacts;
 
 @SuppressWarnings("unchecked")
 public class ComparateurFiche implements Comparator<Appel> {

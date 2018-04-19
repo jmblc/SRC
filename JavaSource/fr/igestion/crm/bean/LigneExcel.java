@@ -25,6 +25,12 @@ public class LigneExcel {
     private String motif;
     private String sous_motif;
     private String lib_entite_gestion;
+    
+    private String campagne;
+    
+    private String nomben;
+    private String codeben;
+    private String qualite;
 
     public LigneExcel() {
     }
@@ -78,7 +84,12 @@ public class LigneExcel {
     }
 
     public String getNOMAPPELANT() {
-        return NOMAPPELANT;
+    	
+    	if (NOMAPPELANT != null && !NOMAPPELANT.equals(nomben)) {
+    		return NOMAPPELANT;
+    	} else {
+    		return "";
+    	}
     }
 
     public void setNOMAPPELANT(String nOMAPPELANT) {
@@ -86,7 +97,13 @@ public class LigneExcel {
     }
 
     public String getCODE_APPELANT() {
-        return CODE_APPELANT;
+    	if (CODE_APPELANT != null) {
+    		if (CODE_APPELANT.equals(codeben)) {
+    			return "-";
+    		}
+    		return CODE_APPELANT;
+    	}
+   		return "";
     }
 
     public void setCODE_APPELANT(String cODEAPPELANT) {
@@ -163,6 +180,62 @@ public class LigneExcel {
 
 	public void setLib_entite_gestion(String lib_entite_gestion) {
 		this.lib_entite_gestion = lib_entite_gestion;
+	}
+
+	/**
+	 * @return the campagne
+	 */
+	public String getCampagne() {
+		return campagne;
+	}
+
+	/**
+	 * @param campagne the campagne to set
+	 */
+	public void setCampagne(String campagne) {
+		this.campagne = campagne;
+	}
+
+	/**
+	 * @return the nomben
+	 */
+	public String getNomben() {
+		return nomben;
+	}
+
+	/**
+	 * @param nomben the nomben to set
+	 */
+	public void setNomben(String nomben) {
+		this.nomben = nomben;
+	}
+
+	/**
+	 * @return the codeben
+	 */
+	public String getCodeben() {
+		return codeben;
+	}
+
+	/**
+	 * @param codeben the codeben to set
+	 */
+	public void setCodeben(String codeben) {
+		this.codeben = codeben;
+	}
+
+	/**
+	 * @return the qualite
+	 */
+	public String getQualite() {
+		return qualite;
+	}
+
+	/**
+	 * @param qualite the qualite to set
+	 */
+	public void setQualite(String qualite) {
+		this.qualite = qualite;
 	}
 
 }

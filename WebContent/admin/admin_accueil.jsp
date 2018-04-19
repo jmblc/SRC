@@ -38,7 +38,7 @@
 				<td align="center" width="120px"><a href="AdministrationProcedureMail.do?method=init"><img src="./img/admin_procedure_mail_out.gif" onmouseover="this.src='./img/admin_procedure_mail_over.gif'" onmouseout="this.src='./img/admin_procedure_mail_out.gif'" border="0"/></a></td>
 				<td align="center" width="120px"><a href="AdministrationDocument.do?method=init"><img src="./img/admin_document_out.gif" onmouseover="this.src='./img/admin_document_over.gif'" onmouseout="this.src='./img/admin_document_out.gif'" border="0"/></a></td>
 				<td align="center" width="120px"><a href="AdministrationSiteWeb.do?method=init"><img src="./img/admin_siteWeb_out.gif" onmouseover="this.src='./img/admin_siteWeb_over.gif'" onmouseout="this.src='./img/admin_siteWeb_out.gif'" border="0"/></a></td>
-				<td >&nbsp;</td>
+				<td align="center" width="120px"><a href="AdministrationScenarios.do?method=importExport"><img src="./img/admin_import-export_out.gif" onmouseover="this.src='./img/admin_import-export_over.gif'" onmouseout="this.src='./img/admin_import-export_out.gif'" border="0"/></a></td>
 			</tr>	
 		</table>
 	

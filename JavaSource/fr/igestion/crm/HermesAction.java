@@ -55,12 +55,12 @@ public class HermesAction extends org.apache.struts.action.Action  {
 		// on vérifie la campagne
 		Collection<Mutuelle> mutuellesCampagne = null;
 		if (StringUtils.isEmpty(campagne_id)) {
-			errors.add("campagne_id", new ActionError("message.libre", "Erreur ! Il faut renseigner la campagne: paramètre \"campagne_id\""));
+			errors.add("campagne_id", new ActionError("message.libre", "Hola ! Faut renseigner la campagne: paramètre \"campagne_id\""));
 		} else {
 			// vérifier que la campagne existe et choper sa mutuelle
 			mutuellesCampagne = SQLDataService.getCampagneMutuelles(campagne_id);
 			if (mutuellesCampagne == null || mutuellesCampagne.isEmpty()) {
-				errors.add("campagne_id", new ActionError("message.libre", "Erreur ! Aucune campagne ne correspond à cet identifiant (campagne_id = " + campagne_id + ")"));
+				errors.add("campagne_id", new ActionError("message.libre", "Hop hop hola ! Aucune campagne ne correspond à cet identifiant (campagne_id = " + campagne_id + ")"));
 			}
 		}
 		
@@ -68,7 +68,7 @@ public class HermesAction extends org.apache.struts.action.Action  {
 		if (errors.isEmpty() && !StringUtils.isEmpty(assure_id)) {
 			Beneficiaire benef = SQLDataService.getBeneficiaireById(assure_id);
 			if (benef == null) {
-				errors.add("assure_id", new ActionError("message.libre", "Erreur ! Aucun bénéficiaire ne correspond à cet identifiant (assure_id = " + assure_id + ")"));
+				errors.add("assure_id", new ActionError("message.libre", "Po po po ! Aucun bénéficiaire ne correspond à cet identifiant (assure_id = " + assure_id + ")"));
 			} else {
 				String idMutuelleBenef = benef.getMUTUELLE_ID();
 				boolean benefCampagneOK = false;
@@ -79,7 +79,7 @@ public class HermesAction extends org.apache.struts.action.Action  {
 					}
 				}
 				if (!benefCampagneOK) {
-					errors.add("assure_id", new ActionError("message.libre", "Erreur ! Le bénéficiaire ne correspond pas à la mutuelle de cette campagne (assure_id = " + assure_id + ")"));
+					errors.add("assure_id", new ActionError("message.libre", "Teu teu teu ! Le bénéficiaire ne correspond pas à la mutuelle de cette campagne (assure_id = " + assure_id + ")"));
 				}
 			}
 		}

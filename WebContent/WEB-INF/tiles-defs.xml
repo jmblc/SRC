@@ -80,6 +80,10 @@
 	<put name="footer" value="/vide.jsp"/>
 </definition>
 
+<definition name=".import_export.scenarios" extends=".scenarios.page">
+	<put name="middle" value="/admin/import_export_scenarios.jsp"/>
+</definition>
+
 <definition name=".pec.page" path="/layout/SimpleLayout.jsp">
 	<put name="titre" type="string" value="H.Contacts | Administration"/>  
 	<put name="header" value="/header.jsp"/>

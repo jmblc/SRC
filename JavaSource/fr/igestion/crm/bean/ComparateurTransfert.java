@@ -4,7 +4,7 @@ import java.util.Comparator;
 
 import org.apache.log4j.Logger;
 
-import fr.igestion.crm.IContacts;
+import fr.igestion.crm.config.IContacts;
 
 
 public class ComparateurTransfert implements Comparator<Transfert> {

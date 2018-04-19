@@ -12,12 +12,12 @@ import org.apache.struts.action.DynaActionForm;
 import org.apache.struts.actions.DispatchAction;
 
 import fr.igestion.crm.CrmUtilSession;
-import fr.igestion.crm.IContacts;
 import fr.igestion.crm.SQLDataService;
 import fr.igestion.crm.UtilHtml;
 import fr.igestion.crm.bean.ModeleProcedureMail;
 import fr.igestion.crm.bean.document.Document;
 import fr.igestion.crm.bean.scenario.InfosScenario;
+import fr.igestion.crm.config.IContacts;
 
 public class AdministrationModeleProcedureMailAction extends DispatchAction {
 

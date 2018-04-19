@@ -39,7 +39,7 @@
 		}
 		else{
 	if( beneficiaire != null && ! beneficiaire.getAdherentId().equals("")){
-		ajout_postit = "<a href=\"Javascript:ajouterPostItBeneficiaire('" + beneficiaire.getAdherentId() + "')\"><img src='../img/creer.gif' border='0' align='middle' id='id_ib_postit_creation' class='message_box' message='Permet de cr&eacute;er un post-it' disposition=\"top-middle\" ></a>";
+		ajout_postit = "<a href=\"Javascript:ajouterPostItBeneficiaire('" + beneficiaire.getAdherentId() + "')\"><img src='./img/creer.gif' border='0' align='middle' id='id_ib_postit_creation' class='message_box' message='Permet de cr&eacute;er un post-it' disposition=\"top-middle\" ></a>";
 	}
 		}
 		
@@ -62,16 +62,16 @@
 					nbr_satisfaction ++;
 					opacite = "style=\"filter:alpha(opacity=" + (100-nbr_satisfaction*15) +"\")";
 					if(h.getSatisfaction().equalsIgnoreCase("Satisfait")){
-						derniers_appels.append("<span><a href=\"Javascript:ouvrirFicheAppel('" + h.getId() + "','L', 'FICHEAPPEL' )\"><img src='../img/s_satisfait_2.gif' align='middle' id='id_img_satisfaction_"+i+"' class='message_box' message='" +h.getSatisfaction()+"' disposition=\"top-middle\"  border='0' " + opacite +"\"></a></span>");
+						derniers_appels.append("<span><a href=\"Javascript:ouvrirFicheAppel('" + h.getId() + "','L', 'FICHEAPPEL' )\"><img src='img/s_satisfait_2.gif' align='middle' id='id_img_satisfaction_"+i+"' class='message_box' message='" +h.getSatisfaction()+"' disposition=\"top-middle\"  border='0' " + opacite +"\"></a></span>");
 					}
 					else if(h.getSatisfaction().equalsIgnoreCase("Neutre")){
-						derniers_appels.append("<span><a href=\"Javascript:ouvrirFicheAppel('" + h.getId() + "','L', 'FICHEAPPEL')\"><img src='../img/s_neutre_2.gif' align='middle' id='id_img_satisfaction_"+i+"' class='message_box' message='" +h.getSatisfaction()+"' disposition=\"top-middle\"  border='0' " + opacite +"\"></a></span>");
+						derniers_appels.append("<span><a href=\"Javascript:ouvrirFicheAppel('" + h.getId() + "','L', 'FICHEAPPEL')\"><img src='img/s_neutre_2.gif' align='middle' id='id_img_satisfaction_"+i+"' class='message_box' message='" +h.getSatisfaction()+"' disposition=\"top-middle\"  border='0' " + opacite +"\"></a></span>");
 					}
 					else if(h.getSatisfaction().equalsIgnoreCase("Insatisfait")){
-						derniers_appels.append("<span><a href=\"Javascript:ouvrirFicheAppel('" + h.getId() + "','L', 'FICHEAPPEL')\"><img src='../img/s_insatisfait_2.gif' align='middle' id='id_img_satisfaction_"+i+"' class='message_box' message='" +h.getSatisfaction()+"' disposition=\"top-middle\"  border='0' " + opacite +"\"></a></span>");
+						derniers_appels.append("<span><a href=\"Javascript:ouvrirFicheAppel('" + h.getId() + "','L', 'FICHEAPPEL')\"><img src='img/s_insatisfait_2.gif' align='middle' id='id_img_satisfaction_"+i+"' class='message_box' message='" +h.getSatisfaction()+"' disposition=\"top-middle\"  border='0' " + opacite +"\"></a></span>");
 					}
 					else{
-						derniers_appels.append("<span><a href=\"Javascript:ouvrirFicheAppel('" + h.getId() + "','L', 'FICHEAPPEL')\"><img src='../img/s_danger_2.gif' align='middle' id='id_img_satisfaction_"+i+"' class='message_box' message='" +h.getSatisfaction()+"' disposition=\"top-middle\"  border='0' " + opacite +"\"></a></span>");
+						derniers_appels.append("<span><a href=\"Javascript:ouvrirFicheAppel('" + h.getId() + "','L', 'FICHEAPPEL')\"><img src='img/s_danger_2.gif' align='middle' id='id_img_satisfaction_"+i+"' class='message_box' message='" +h.getSatisfaction()+"' disposition=\"top-middle\"  border='0' " + opacite +"\"></a></span>");
 					}							   
 				}						
 			}

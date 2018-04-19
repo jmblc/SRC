@@ -7,7 +7,146 @@ var largeur=-1;
 var tps=0;
 var temps=0;
 var tempo="0";
-var largeur=largeur+1; 
+var largeur=largeur+1;
+
+var $Binder = new LienSelect();
+
+function LienSelect() {
+	
+	this.lier = function(select, element, wrapBefore, wrapAfter, varId) {
+		$("#" + select).each(function() {
+			maj(this, element, wrapBefore, wrapAfter, varId);
+			check(element);
+		});
+		$("#" + select).change(function() {
+			maj(this, element, wrapBefore, wrapAfter, varId);
+			check(element);
+		});
+	}
+	
+	this.check = check;
+	
+	function maj(select, element, wrapBefore, wrapAfter, varId) {		
+		if (!wrapBefore) {
+			wrapBefore = "";
+		}
+		if (!wrapAfter) {
+			wrapAfter = "";
+		}
+		if (!varId) {
+			varId = "{ref}";
+		}
+		var elem = $("#" + element)[0];
+		var selectId = select.id;
+		$.data(elem, "lien", {select: selectId});
+		
+		$("#" + selectId + " option:selected").each(	    			
+			function() {					
+				var ref = $(this).val();
+				if (ref == null || ref == '' || (ref.trim() != undefined && ref.trim() == '')) {
+					$("#" + element + " div[ref]").detach();
+					setNbLiens(elem, 0);
+					$(elem).hide();
+					return;
+				}
+				// wrapping avec remplacement de référence par sa valeur
+				wrapBefore = eval("wrapBefore.replace(/" + varId + "/g, ref)");
+				wrapAfter = eval("wrapAfter.replace(/" + varId + "/g, ref)");
+				var divId = selectId + ref;
+				var supprId = "suppr" + selectId + ref;				
+				var divTexte = "<div style='padding: 1px;' id='"+divId+"' ref='"+ref+"'>"+wrapBefore+$(this).text()+wrapAfter+"</div>";
+				var spanSuppr = "<span class='close' id='" + supprId + "' ref='" + ref + "'>x</span>";	
+				$("#" + divId).each(function() {
+					$(this).remove();
+					incrementerNbLiens(elem, -1);
+				});
+				$(elem).append($(divTexte)).show();
+				$(spanSuppr).prependTo($("#" + divId));
+				incrementerNbLiens(elem);				
+				$("#" + supprId).bind("click", function() {
+					var annulSelection = $(this).attr("ref");
+					selectId = this.id.replace("suppr", "").replace(annulSelection, "");
+					$("#" + selectId + annulSelection).remove();
+					$("#" + selectId + " option[value='" + annulSelection + "']").attr("selected", false);
+					incrementerNbLiens(elem, -1);
+					if (getNbLiens(elem) < 1) {
+						$(elem).hide();
+					}
+				});
+			}
+		);
+	}
+	
+	function check(element) {
+		try {
+	    	selectId = $.data($("#" + element)[0], "lien").select;
+	    	listeElements = $("#" + element + " div[id]");	    	
+	    	if (listeElements.length > 0) {
+	    		listeElements.each(function() {
+	    			value = $(this).attr("ref");
+	    			$("#" + selectId + " option[value='" + value + "']").attr("selected", true);
+	    		});
+	    	} else {
+	    		$("#" + selectId + " option").attr("selected", false);
+	    		$("#" + selectId + " option[value='']").attr("selected", true);
+	    	}
+		} catch (error) {}	
+    }
+	
+	function getNbLiens(elem) {
+		var nbliens = $.data(elem, "nbliens");
+		if (nbliens) {
+			return nbliens.nombre;
+		}
+		return 0;
+	}
+	
+	function setNbLiens(elem, nb) {
+		$.data(elem, "nbliens", {nombre: nb});
+	}
+	
+	function incrementerNbLiens(elem, nb) {
+		if (!nb) {nb=1;}
+		setNbLiens(elem, nb + getNbLiens(elem));
+	}
+}
+
+function infoBulle(contenu, conteneur) {
+	var elementConteneur;
+	if (!conteneur) {
+		var textConteneur = "<div class=\"info\" style=\"display:none\"></div>";
+		elementConteneur = $(textConteneur);
+		$("body").append(elementConteneur);
+	} else if (conteneur instanceof Element) {
+		elementConteneur = $(conteneur);
+	} else {
+		elementConteneur = $("#" + conteneur);
+		if (elementConteneur) {
+			elementConteneur = elementConteneur[0];
+		}
+	}
+	if (elementConteneur) {
+		var parent = $(elementConteneur)[0].parentElement;
+		if (parent) {
+			var parentPos = $(parent).css("position");
+			if (!parentPos) {
+				$(parent).css("position", "relative");
+			}
+		}
+		$(elementConteneur).empty();
+		$(elementConteneur).mouseout(function() {
+			$(this).css("display", "none");
+		});			
+		$(elementConteneur).append(contenu);
+		$(elementConteneur).css("position", "absolute");
+		var closer = "<span class='close' style='position: absolute; top: 0; right: 0'>&nbsp;x&nbsp;</span>";
+		$(closer).click(function() {
+			$(elementConteneur).css("display", "none");
+		});
+		$(elementConteneur).append($(closer));
+		$(elementConteneur).css("display", "block");
+	}
+}
 
 function afficherPopUpMessage(id, message){
 	var options = $('#' + id).GetBubblePopupOptions();
@@ -140,10 +279,6 @@ function creerFormulaire(){
 
 function proposerTansferts(pidcampagne){	
 	frm = document.forms["FicheAppelForm"];
-	choix = frm.transferer_fiche[0].checked;	
-	if(! choix){		
-		return;
-	}
 		
 	var tableau_transferts = "<form name='PropositionTransferts'>";
 		
@@ -188,7 +323,7 @@ function proposerTansferts(pidcampagne){
 		}
 	else
 		{
-		remplirTransferts();
+		remplirTransferts(pidcampagne);
 		}
 
 	
@@ -203,7 +338,7 @@ function proposerTansferts(pidcampagne){
 
 
 
-function remplirTransferts(){
+function remplirTransferts(idCampagne){
 	xmlHttpProposerTransferts = GetXmlHttpObject();						
 	if (xmlHttpProposerTransferts==null)
 	{
@@ -211,7 +346,7 @@ function remplirTransferts(){
 		return;
 	} 
 	
-	var url = "ajax/ajax_listeTransferts.jsp";
+	var url = "ajax/ajax_listeTransferts.jsp?idCampagne=" + idCampagne;
 	
 	xmlHttpProposerTransferts.onreadystatechange=doRemplirTransferts;
 	xmlHttpProposerTransferts.open("GET", url, false);
@@ -302,7 +437,7 @@ function cloturerFicheAppel(){
 		mode_cloture_id = frm.cloture_code.value;
 		id_objet = frm.id_objet.value;
 		satisfaction_code = frm.satisfaction_code.value;
-		transferer_fiche = frm.transferer_fiche[0].checked;
+//		transferer_fiche = frm.transferer_fiche[0].checked;
 		destinataire_transfert = Trim(frm.destinataire_transfert.value);
 		
 					
@@ -322,7 +457,7 @@ function cloturerFicheAppel(){
 		}
 		
 		//Si Hors Cible, on clôture directement
-		if(mode_cloture_text == "Hors Cible"){
+		if(mode_cloture_id == "HORSCIBLE"){
 			frm.method.value = "cloturerFicheAppel";
 			frm.texte_generique.value = mode_cloture_text;
 			if(bouton_cloturer != null){
@@ -333,7 +468,7 @@ function cloturerFicheAppel(){
 		}
 		
 		//Idem changement de campagne
-		if(mode_cloture_text == "Autre Campagne"){
+		if(mode_cloture_id == "AUTRECAMP"){
 			frm.method.value = "cloturerFicheAppel";
 			frm.texte_generique.value = mode_cloture_text;
 			if(bouton_cloturer != null){
@@ -398,58 +533,58 @@ function cloturerFicheAppel(){
 			return;
 		}
 		
-		//S'agit-il d'une réclamation?
-		if(! frm.reclamation[0].checked && ! frm.reclamation[1].checked){
-			alert("Veuillez préciser s'il s'agit d'une réclamation ou non.");
-			return;
-		}
+//		//S'agit-il d'une réclamation?
+//		if(! frm.reclamation[0].checked && ! frm.reclamation[1].checked){
+//			alert("Veuillez préciser s'il s'agit d'une réclamation ou non.");
+//			return;
+//		}
 		
 		
-		//Rappel : optionnel mais doit être bon
-		date_rappel = Trim(frm.date_rappel.value);
-		numero_rappel = Trim(frm.numero_rappel.value);
-		periode_rappel = frm.periode_rappel.value;
-		
-		if(date_rappel != "" || numero_rappel != "" || periode_rappel != "-1"){
-			
-			//On vérifie
-			if( date_rappel == "" ){
-				alert("Veuillez préciser une date de rappel");
-				frm.date_rappel.focus();
-				return;
-			}
-			
-			if( testDate(date_rappel) == false ){
-				alert("Veuillez entrer une date au format JJ/MM/AAAA");
-				frm.date_rappel.focus();
-				return;
-			}
-			
-			if( numero_rappel == "" ){
-				alert("Veuillez préciser un numéro de rappel.");
-				frm.numero_rappel.focus();
-				return;
-			}
-			
-			if(!IsNumeric(numero_rappel) ){
-				alert("Le numéro de téléphone ne doit comporter que des chiffres.");
-				frm.numero_rappel.focus();
-				return;
-			}
-			
-			if( numero_rappel.length != 10){
-				alert("Le numéro de téléphone doit comporter 10 chiffres.");
-				frm.numero_rappel.focus();
-				return;
-			}
-			
-			if(periode_rappel == "-1"){
-				alert("Veuillez préciser la période de rappel.");
-				frm.periode_rappel.focus();
-				return;
-			}			
-			
-		}
+//		//Rappel : optionnel mais doit être bon
+//		date_rappel = Trim(frm.date_rappel.value);
+//		numero_rappel = Trim(frm.numero_rappel.value);
+//		periode_rappel = frm.periode_rappel.value;
+//		
+//		if(date_rappel != "" || numero_rappel != "" || periode_rappel != "-1"){
+//			
+//			//On vérifie
+//			if( date_rappel == "" ){
+//				alert("Veuillez préciser une date de rappel");
+//				frm.date_rappel.focus();
+//				return;
+//			}
+//			
+//			if( testDate(date_rappel) == false ){
+//				alert("Veuillez entrer une date au format JJ/MM/AAAA");
+//				frm.date_rappel.focus();
+//				return;
+//			}
+//			
+//			if( numero_rappel == "" ){
+//				alert("Veuillez préciser un numéro de rappel.");
+//				frm.numero_rappel.focus();
+//				return;
+//			}
+//			
+//			if(!IsNumeric(numero_rappel) ){
+//				alert("Le numéro de téléphone ne doit comporter que des chiffres.");
+//				frm.numero_rappel.focus();
+//				return;
+//			}
+//			
+//			if( numero_rappel.length != 10){
+//				alert("Le numéro de téléphone doit comporter 10 chiffres.");
+//				frm.numero_rappel.focus();
+//				return;
+//			}
+//			
+//			if(periode_rappel == "-1"){
+//				alert("Veuillez préciser la période de rappel.");
+//				frm.periode_rappel.focus();
+//				return;
+//			}			
+//			
+//		}
 		
 	
 		
@@ -483,7 +618,7 @@ function cloturerFicheAppel(){
 		
 		//Si à traiter : il faut un type de dossier
 			
-		if(mode_cloture_text == "A Traiter"){
+		if(mode_cloture_id == "ATRAITER"){
 			if(frm.type_dossier.length > 1 && Trim(frm.type_dossier.value) == "-1"){
 				alert("Veuillez préciser le type de dossier.");
 				frm.type_dossier.focus();
@@ -547,7 +682,7 @@ function ouvrirEvenementFromFicheAppel(idEvenement, modeOuverture){
 	var top = (screen.height-hauteur)/2;
  	var left = (screen.width-largeur)/2;	
  	
- 	page = "../popups/ouvrir_evenement.jsp?idEvenement=" + idEvenement + "&modeOuverture=" + modeOuverture ;
+ 	page = contextPath + "/popups/ouvrir_evenement.jsp?idEvenement=" + idEvenement + "&modeOuverture=" + modeOuverture ;
  	win = open(page,'DetailEvenement','toolbar=0,status=1,resizable=yes,scrollbars=yes, width=' + largeur + ',height=' + hauteur + ',top='+top+ ',left='+left);		
  	win.focus();
  	
@@ -582,21 +717,11 @@ function ouvrirPecFromFicheAppel(idPec, modeOuverture){
 
 
 function ouvrirFicheAppel(idAppel, modeOuverture, sourceOpener){
-	var largeur = 550;
+	var largeur = 650;
 	var hauteur = 840;
 	var top = (screen.height-hauteur)/2;
  	var left = (screen.width-largeur)/2;	
- 	
- 	page = "";
- 	
- 	 	
-
- 	if(sourceOpener == "RECHERCHEFICHESAPPELS"){
- 		page = "../popups/ouvrir_fiche_appel.jsp?idAppel=" + idAppel + "&modeOuverture=" + modeOuverture + "&sourceOpener=" + sourceOpener;
- 	}
- 	else{
- 		page = "./popups/ouvrir_fiche_appel.jsp?idAppel=" + idAppel + "&modeOuverture=" + modeOuverture + "&sourceOpener=" + sourceOpener;
- 	}
+ 	page = contextPath + "/AfficheResultatRecherche.show?idAppel=" + idAppel + "&modeOuverture=" + modeOuverture + "&sourceOpener=" + sourceOpener;
 
 	win = open(page,'FicheAppel','toolbar=0,status=1,resizable=yes,scrollbars=yes, width=' + largeur + ',height=' + hauteur + ',top='+top+ ',left='+left);		
 	win.focus();
@@ -605,11 +730,11 @@ function ouvrirFicheAppel(idAppel, modeOuverture, sourceOpener){
 
 
 function nouvelleRechercheFichesAppels(fenetre_courant){
-	var largeur = 410;
-	var hauteur = 600;
+	var largeur = 600;
+	var hauteur = 700;
 	var top = (screen.height-hauteur)/2;
  	var left = (screen.width-largeur)/2;	
-	page = "../popups/recherche_fiches_appels_criteres.jsp";
+	page = contextPath + "/popups/recherche_fiches_appels_criteres.jsp";
 	win = open(page,'RechercheFichesCriteres','toolbar=0,status=1,resizable=yes,scrollbars=yes, width=' + largeur + ',height=' + hauteur + ',top='+top+ ',left='+left);		
 	win.focus();
 	fenetre_courant.close();
@@ -617,8 +742,8 @@ function nouvelleRechercheFichesAppels(fenetre_courant){
 
 
 function statistiquesFiches(){
-	var largeur = 410;
-	var hauteur = 430;
+	var largeur = 600;
+	var hauteur = 670;
 	var top = (screen.height-hauteur)/2;
  	var left = (screen.width-largeur)/2;	
 	page = "popups/statistiques_fiches_appels_criteres.jsp";
@@ -635,6 +760,11 @@ function doStatistiquesFichesClk(){
 
 
 function doStatistiquesFiches(){
+	
+	$Binder.check('selectionAuteurs');
+	$Binder.check('selectionCampagnes');
+	$Binder.check('selectionCriteres');	
+	
 	frm = document.forms["StatistiquesFicheForm"];
 	
 	teleacteur_id = frm.teleacteur_id.value;
@@ -644,9 +774,10 @@ function doStatistiquesFiches(){
 	
 	site_id = frm.site_id.value;
 	site_text = frm.site_id[frm.site_id.selectedIndex].text;
+	
+	campagne_id = frm.campagne_id.value;
 		
 	createur_id = frm.createur_id.value;
-	createur_text = frm.createur_id[frm.createur_id.selectedIndex].text;
 	
 	reference_id = frm.reference_id.value;
 	reference_text = frm.reference_id[frm.reference_id.selectedIndex].text;
@@ -657,19 +788,17 @@ function doStatistiquesFiches(){
 	date_debut = frm.date_debut.value;
 	date_fin = frm.date_fin.value;
 			
-	//resolu = frm.resolu.value;
 	var radios = document.getElementsByName('resolu');
 
 	for (var i = 0, length = radios.length; i < length; i++) {
 	    if (radios[i].checked) {
-	        // do whatever you want with the checked radio
 	    	resolu = radios[i].value
 	        break;
 	    }
 	}
 	
 	//Vérifier que l'on a au moins un axe de recherche
-	if(mutuelle_id == "" && site_id == "" && createur_id == "" && reference_id == "" 
+	if(campagne_id == "" && mutuelle_id == "" && site_id == "" && createur_id == "" && reference_id == "" 
 	&& statut_id == "" &&date_debut == "" && date_fin == "" ){
 		alert("Veuillez entrer au moins un axe de recherche.");
 		frm.date_debut.focus();
@@ -712,35 +841,13 @@ function doStatistiquesFiches(){
 			return;
 		}
 	}
-		
-	//Tout OK
-	page = "../exportexcel/GenereRapportPreload.jsp?teleacteur_id="+ teleacteur_id ;
-	page += "&mutuelle_id=" + mutuelle_id + "&mutuelle_text=" + escape(mutuelle_text);
-	page += "&site_id=" + site_id + "&site_text=" + escape(site_text) ;
-	page += "&createur_id=" + createur_id + "&createur_text=" + escape(createur_text);
-	page += "&reference_id=" + reference_id + "&reference_text=" + escape(reference_text);
-	page += "&statut_id=" + statut_id + "&statut_text=" + escape(statut_text);
-	page += "&date_debut=" + date_debut + "&date_fin=" + date_fin;
-	page += "&resolu=" + resolu;
 	
-	
-	/*
-	var largeur = 410;
-	var hauteur = 370;
-	
-	var top = (screen.height-hauteur)/2;
-	var left = (screen.width-largeur)/2;	
-				
-	open(page,'Resultat_Statistiques_Fiches','toolbar=0,status=1,resizable=yes,scrollbars=yes,width=' + largeur + ',height=' + hauteur + ',top='+top+ ',left='+left);	
-	*/
-	
-	location.href = page;
-	
+	frm.submit();
 }
 
 function rechercherFiches(){
-	var largeur = 410;
-	var hauteur = 600;
+	var largeur = 600;
+	var hauteur = 700;
 	var top = (screen.height-hauteur)/2;
  	var left = (screen.width-largeur)/2;	
 	page = "popups/recherche_fiches_appels_criteres.jsp";
@@ -757,6 +864,13 @@ function doRechercheFichesClk(){
 }
 
 function doRechercheFiches(){
+	
+	$Binder.check("selectionTypesFiches");
+	$Binder.check("selectionCampagnes");
+	$Binder.check("selectionTypesAppelants");
+	$Binder.check("selectionAuteurs");
+	$Binder.check("selectionStatuts");
+	
 	frm = document.forms["CriteresRechercheFicheForm"];
 	
 	//FICHE APPEL
@@ -773,7 +887,6 @@ function doRechercheFiches(){
 		createur_id = frm.createur_id.value;
 	}
 	statut_id = frm.statut_id[frm.statut_id.selectedIndex].value;
-	reclamation = frm.reclamation[frm.reclamation.selectedIndex].value;
 	satisfaction_id = frm.satisfaction_id[frm.satisfaction_id.selectedIndex].value;
 	date_debut = frm.date_debut.value;
 	date_fin = frm.date_fin.value;
@@ -784,7 +897,7 @@ function doRechercheFiches(){
 		
 	//Vérifier que l'on a au moins un axe de recherche
 	if(fiche_id == "" && mot_cle == "" && campagne_id == "" && type_appelant == "" 
-	&& createur_id == "" && statut_id == ""	&& reclamation == "" && satisfaction_id == "" 
+	&& createur_id == "" && statut_id == ""	&& satisfaction_id == "" 
 	&& date_debut == "" && date_fin == ""  
 	&& motif == "" && sous_motif == "" && point == "" && sous_point == "" && reference_id == ""){
 		alert("Veuillez entrer au moins un axe de recherche.");
@@ -871,12 +984,7 @@ function doRechercheFiches(){
 	}
 		
 	//Tout OK
-	page = "./recherche_fiches_appels_preload.jsp?fiche_id=" + escape(fiche_id) + "&mot_cle=" + escape(mot_cle);
-	page += "&campagne_id=" + campagne_id + "&type_appelant=" + type_appelant + "&createur_id=" + createur_id;
-	page += "&statut_id=" + statut_id + "&reclamation=" + reclamation + "&satisfaction_id=" + satisfaction_id;
-	page += "&date_debut=" + date_debut + "&date_fin=" + date_fin;
-	page += "&motif=" + escape(motif) + "&sous_motif=" + escape(sous_motif) + "&point=" + escape(point) + "&sous_point=" + escape(sous_point) + "&reference_id=" + reference_id;
-	
+	page = "./recherche_fiches_appels_preload.jsp";
 	var largeur = screen.width-50;
 	var hauteur = 460;
 	var top = (screen.height-hauteur)/2;
@@ -884,8 +992,9 @@ function doRechercheFiches(){
 				
 	win = open(page,'Resultat_Recherche_Fiches','toolbar=0,status=1,resizable=yes,scrollbars=yes,width=' + largeur + ',height=' + hauteur + ',top='+top+ ',left='+left);	
 	win.focus();
-	self.close();
-				
+	frm.target = 'Resultat_Recherche_Fiches';
+	frm.submit();
+	self.close();			
 	
 }
 
@@ -1149,7 +1258,7 @@ function rafraichirZoneFicheAppel(idAppel, zone){
 	} 	
 
 
-	var url = "../ajax/ajax_rafraichirZoneFicheAppel.jsp?idAppel=" + idAppel + "&zone=" + zone;	
+	var url = contextPath + "/ajax/ajax_rafraichirZoneFicheAppel.jsp?idAppel=" + idAppel + "&zone=" + zone;	
 
 	xmlHttpRafraichirZoneAppel.onreadystatechange=doRafraichirZoneFicheAppel;
 	xmlHttpRafraichirZoneAppel.open("GET", url, false); 
@@ -1228,7 +1337,7 @@ function ficheAppelModifierCommentaires(){
 			return;
 		} 	
 	
-		var url = "../ajax/ajax_modifierCommentairesFicheAppel.jsp?idAppel=" + idAppel + "&teleacteur_id=" + teleacteur_id + "&commentaires=" + commentaires;	
+		var url = contextPath + "/ajax/ajax_modifierCommentairesFicheAppel.jsp?idAppel=" + idAppel + "&teleacteur_id=" + teleacteur_id + "&commentaires=" + commentaires;	
 
 		xmlHttpModifierCommentairesFicheAppel.open("GET", url, false);
 		xmlHttpModifierCommentairesFicheAppel.send(null);				
@@ -1255,7 +1364,7 @@ function ficheAppelModifierCommentaires(){
 			return;
 		} 	
 	
-		var url = "../ajax/ajax_mettreStatutFicheAppelACloture.jsp?idAppel=" + idAppel + "&teleacteur_id=" + teleacteur_id + "&commentaires=" + commentaires;	
+		var url = contextPath + "/ajax/ajax_mettreStatutFicheAppelACloture.jsp?idAppel=" + idAppel + "&teleacteur_id=" + teleacteur_id + "&commentaires=" + commentaires;	
 
 		xmlHttpMettreFicheAppelACloture.open("GET", url, false);
 		xmlHttpMettreFicheAppelACloture.send(null);				
@@ -1650,8 +1759,14 @@ function rechercheAssure_kp(e){
 			characterCode = e.keyCode;
 		}
 		
-		if(characterCode == 13){ 
-			doRechercheAssure();
+		if(characterCode == 13){
+			
+			if (arguments.length > 1) {
+				extension = arguments[1];
+				doRechercheAssure(extension);
+			} else {
+				doRechercheAssure();
+			}
 		}	
 }
 
@@ -1822,7 +1937,13 @@ function doAjouterPostItEntreprise(){
 }
 
 
-function doRechercheAssure(){
+function doRechercheAssure() {
+	
+	extension = "";
+	if (arguments.length > 0) {
+		extension = arguments[0];
+	}
+	
 	frm = document.FicheAppelForm;
 	mutuelle_id = frm.mutuelle_id.value;
 	teleacteur_id = frm.teleacteur_id.value;
@@ -1832,7 +1953,10 @@ function doRechercheAssure(){
 		return;
 	}
 	
-	cle_recherche = Trim(frm.cle_recherche.value);
+	cle_recherche = $("input[name=cle_recherche" + extension + "]").val();	
+	ckb_nom_prenom = frm["ckb_nom_prenom" + extension].checked;
+	ckb_numero_adherent = frm["ckb_numero_adherent" + extension].checked;
+	ckb_numero_secu = frm["ckb_numero_secu" + extension].checked;
 		
 	if(cle_recherche == ""){
 		alert("Veuillez entrer une clé de recherche.");
@@ -1880,22 +2004,23 @@ function doRechercheAssure(){
 	}
 	
 	//Critères
-	if( frm.ckb_nom_prenom.checked == false  && frm.ckb_numero_adherent.checked == false && frm.ckb_numero_secu.checked == false ){
+	if( ckb_nom_prenom == false  && ckb_numero_adherent == false && ckb_numero_secu == false ){
 		alert("Veuillez cocher un ou plusieurs axes de recherche.");
-		frm.ckb_nom_prenom.focus();
+		frm["ckb_nom_prenom" + extension].focus();
 		return;
 	}
 	
-	
-	
-	tous_clients = frm.choix_client.value;
-	inclure_inactifs = frm.inclure_inactifs.value;
-	
+	tous_clients = "1";
+	inclure_inactifs = "1";
+	if (extension == "") {
+		tous_clients = frm.choix_client.value;
+		inclure_inactifs = frm.inclure_inactifs.value;
+	}
 	page = "popups/recherche_objets_preload.jsp?teleacteur_id="+teleacteur_id+"&mutuelle_id=" + mutuelle_id;
 	page += "&type=assures&tous_client=" + tous_clients + "&inclure_inactifs=" + inclure_inactifs;
-	page += "&ckb_nom_prenom=" +  frm.ckb_nom_prenom.checked + "&ckb_numero_adherent=" +  frm.ckb_numero_adherent.checked;
-	page += "&ckb_numero_secu=" + frm.ckb_numero_secu.checked;
-	page += "&cle_recherche=" + escape(cle_recherche);
+	page += "&ckb_nom_prenom=" +  ckb_nom_prenom + "&ckb_numero_adherent=" +  ckb_numero_adherent;
+	page += "&ckb_numero_secu=" + ckb_numero_secu;
+	page += "&cle_recherche" + extension + "=" + escape(cle_recherche);
 	
 		
 	var largeur = screen.width-50;
@@ -2388,16 +2513,27 @@ function ficheAppelNouvelleRechercheAppelant(){
 
 
 
-function ficheAppelSetAssure(ben_id){
+function ficheAppelSetAssure(ben_id, rechercheAuxiliaire){
 	frm = window.opener.document.FicheAppelForm;
 	frm.method.value = 'setAssure';
-	frm.id_objet.value = ben_id;
+	
+	if (rechercheAuxiliaire) {
+		frm.id_beneficiaire.value = ben_id;
+	} else {
+		frm.id_objet.value = ben_id;
+	}
+	
 	frm.submit();
 	self.close();
 }
 
 function ficheAppelNouvelleRechercheAssure(){
+	var ext = "";
 	frm = document.FicheAppelForm;
+	if (arguments.length > 0) {
+		ext = arguments[0];
+		frm["is_beneficiaire" + ext].value = true;
+	}
 	frm.method.value = 'nouvelleRechercheAssure';
 	frm.submit();
 }
@@ -2550,10 +2686,14 @@ function creerPec(){
 	frm = document.forms["CreationPecHContacts"];
 	id_etablissement_hospitalier = frm.id_etablissement_hospitalier.value;
 	id_objet_fenetre_mere = window.opener.document.forms["FicheAppelForm"].id_objet.value;
+	id_benef_courant = "";
+	if (window.opener.document.forms["FicheAppelForm"].id_beneficiaire) {
+		id_benef_courant = window.opener.document.forms["FicheAppelForm"].id_beneficiaire.value;
+	}
 	id_objet_fenetre_pec = frm.id_objet_appelant_depart.value;
 	
 	//Pas de changement en cours de route
-	if(id_objet_fenetre_mere !=  id_objet_fenetre_pec){
+	if(id_objet_fenetre_mere !=  id_objet_fenetre_pec && id_objet_fenetre_pec != id_benef_courant){
 		alert("Attention : vous avez changé d'assuré en cours de route.\n\nVeuillez fermer cette fenêtre et recréer la PEC.");
 		return;
 		
@@ -3278,11 +3418,38 @@ function ficheAppelChangeTransfererFiche(){
 	
 }
 
+var transferer_fiche = false;
 
-function ficheAppelChangeTypeCloture(){
-	frm = document.forms["FicheAppelForm"];
-	frm.type_dossier.value = "-1";
+function ficheAppelChangeTypeCloture() {
 	
+	frm = document.forms["FicheAppelForm"];
+	choix = frm.cloture_code.value;
+	if (choix != null && choix.indexOf("TRANSFERE") > -1) {
+		frm.destinataire_transfert.disabled = false;
+		transferer_fiche = true;
+		document.getElementById("id_image_user_mail").style.display="block";
+		proposerTansferts(frm.campagne_id.value);
+	} else {
+		frm.destinataire_transfert.value = "";
+		frm.destinataire_transfert.disabled = true;
+		transferer_fiche = false;
+		document.getElementById("id_image_user_mail").style.display="none";
+	}
+	
+	let index = frm.cloture_code.selectedIndex;
+	let option = frm.cloture_code[index];
+	frm.type_dossier.value = -1;
+	frm.type_dossier.disabled = true;
+	for (let i=0; i<option.attributes.length; i++) {
+		let attr = option.attributes[i];
+		if(attr.name == 'effet') { 
+			if(attr.value == 'effet_deverrouillage') {
+				frm.type_dossier.disabled = false;
+				frm.type_dossier.focus();
+			} 
+			break;
+		} 
+	}	
 }
 
 
@@ -5707,11 +5874,11 @@ function AdministrationModifierMessage(message_id){
 }
 
 function AdministrationModifierTransfert(transfert_id){
-	var largeur = 520;
-	var hauteur = 230;
+	var largeur = 700;
+	var hauteur = 450;
 	var top = (screen.height-hauteur)/2;
  	var left = (screen.width-largeur)/2;
-	page = "admin/admin_modifierTransfert.jsp?transfert_id="+transfert_id;	
+	page = contextPath + "/AdministrationTransferts.do?method=popModifierTransfert&transfert_id="+transfert_id;	
 	win = open(page,'ModifierTransfert','toolbar=0,status=1,resizable=yes,scrollbars=yes,width=' + largeur + ',height=' + hauteur + ',top='+top+ ',left='+left);		
 	win.focus();
 }
@@ -5729,8 +5896,8 @@ function AdministrationAjouterMessage(message_id){
 
 
 function AdministrationAjouterTransfert(transfert_id){
-	var largeur = 520;
-	var hauteur = 230;
+	var largeur = 700;
+	var hauteur = 450;
 	var top = (screen.height-hauteur)/2;
  	var left = (screen.width-largeur)/2;
 	page = "admin/admin_ajouterTransfert.jsp";	
@@ -5937,7 +6104,7 @@ function creerMessage(){
 
 
 function modifierTransfert(){
-	frm = document.forms["ModificationTransfertForm"];	
+	frm = document.forms[0];	
 	libelle = Trim(frm.libelle.value);
 	email = Trim(frm.email.value);
 		
@@ -5970,28 +6137,26 @@ function modifierTransfert(){
 			frm.email.focus();
 			return;
 		}
-	}			
-
-	
-			
+	}	
 	
 	var question = confirm("Ceci va modifier le transfert.\n\nVoulez-vous continuer?");
 	if(question==true)
 	{
-		frmOpener = window.opener.document.forms["AdministrationTransfertsForm"];	
-		frmOpener.method.value = "modifierTransfert";
-		frmOpener.transfert_id.value = frm.transfert_id.value;
-		frmOpener.libelle.value = libelle;
-		frmOpener.email.value = email;
-			
-		frmOpener.submit();
-		window.close();
+		// JQUERY AJAX REQUEST
+		adresse = $("form").attr("action");
+		params = $("form").serialize();
+		opener = window.opener;
+		
+		$.post(adresse, params, function(data){
+			opener.location.href = adresse + "?method=init";
+			window.close();
+		});
 	}	
 	
 }
 
 function creerTransfert(){
-	frm = document.forms["CreationTransfertForm"];	
+	frm = document.forms[0];	
 	libelle = Trim(frm.libelle.value);
 	email = Trim(frm.email.value);
 
@@ -6025,24 +6190,26 @@ function creerTransfert(){
 			frm.email.focus();
 			return;
 		}
-	}			
-
-	
-	
-		
-	var question = confirm("Ceci va créer le transfert.\n\nVoulez-vous continuer?");
-	if(question==true)
-	{
-		frmOpener = window.opener.document.forms["AdministrationTransfertsForm"];	
-		frmOpener.method.value = "creerTransfert";
-		frmOpener.libelle.value = libelle;
-		frmOpener.email.value = email;		
-		frmOpener.submit();
-		window.close();
 	}
 	
-	
-	
+	var question = confirm("Ceci va créer le transfert.\n\nVoulez-vous continuer?");
+	if(question==true) {
+		
+		msg = "Opération en cours ...";
+		$("#message").text(msg).fadeOut(2000);					
+		
+		// JQUERY AJAX REQUEST
+		adresse = $("form").attr("action");
+		params = $("form").serialize();
+		opener = window.opener;
+		
+		$.post(adresse, params, function(data){
+			window.location.href = window.location.href;
+			opener.location.href = adresse + "?method=init";
+			window.focus();
+		});
+
+	}
 }
 
 
@@ -6122,6 +6289,12 @@ function trierSessionsPar(i){
 				
 	}	
 }
+ 
+function selectCampagneImportExport(){		
+		frm = document.forms[0];
+		frm.choix.value='selectCampagne';
+		frm.submit();	
+	}
  
  
 function selectCampagneScenario(){		

@@ -11,7 +11,7 @@ import org.apache.struts.action.DynaActionFormClass;
 import org.apache.struts.config.FormBeanConfig;
 import org.apache.struts.config.ModuleConfig;
 
-import common.Logger;
+import org.apache.log4j.Logger;
 
 import fr.igestion.crm.bean.LibelleCode;
 import fr.igestion.crm.bean.TeleActeur;
@@ -20,6 +20,7 @@ import fr.igestion.crm.bean.pec.DemandePec;
 import fr.igestion.crm.bean.scenario.Campagne;
 import fr.igestion.crm.bean.scenario.Motif;
 import fr.igestion.crm.bean.scenario.Scenario;
+import fr.igestion.crm.config.IContacts;
 
 public class CrmForms {
 
@@ -100,13 +101,11 @@ public class CrmForms {
             ficheAppelForm.set(_mutuelle_id, mutuelle.getId());
 
             // Types de dossiers pour H.Courriers
-            Collection<LibelleCode> types_dossiers = SQLDataService
-                    .getTypesDossiers(mutuelle.getId());
+            Collection<LibelleCode> types_dossiers = SQLDataService.getTypesDossiers(mutuelle.getId());
             request.getSession().setAttribute(FicheAppelAction._var_session_types_dossiers, types_dossiers);
             ficheAppelForm.set(_type_dossier, IContacts._blankSelect);
 
-            Scenario scenario = SQLDataService.getScenarioByCampagneMutuelle(
-                    campagne.getId(), mutuelle.getId());
+            Scenario scenario = SQLDataService.getScenarioByCampagneMutuelle(campagne.getId(), mutuelle.getId());
             if (scenario != null) {
                 consignes = scenario.getCONSIGNES();
                 discours = scenario.getDISCOURS();

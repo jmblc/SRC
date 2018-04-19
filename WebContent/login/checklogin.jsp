@@ -20,7 +20,7 @@
 		<link rel="shortcut icon" href="img/favicon.ico" type="image/x-icon">
 		<link rel="stylesheet" type="text/css" href="layout/hcontacts_styles.css">
 		<link rel="stylesheet" type="text/css" href="layout/jquery.bubblepopup.v2.1.5.css"/>		
-		<script language="JavaScript" src="layout/hcontacts_util.js"></script>
+		<script language="JavaScript" src="layout/hcontacts_util.js?v4.2"></script>
 		<script language="JavaScript" src="layout/jquery-1.4.2.js"></script>
 		<script language="JavaScript" src="layout/jquery.bubblepopup.v2.1.5.min.js"></script>
 		

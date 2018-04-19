@@ -4,11 +4,11 @@
 <%@ taglib uri="/WEB-INF/struts-tiles.tld" prefix="tiles" %>	
 <jsp:directive.include file="../fiche_appel_shared_object.jsp"/>
 <div style="padding-top:20px;padding-bottom:20px;" >
-	<fieldset style="width:90%; border:3px solid #DADADA"><legend><label class="noir12IB">RECHERCHE </label><label class="gris12IB">AUTRE APPELANT</label>&nbsp;&nbsp;<img src="./img/APPELANT_SMALL.gif" align="top" />&nbsp;</legend>
+	<fieldset style="border:3px solid #DADADA"><legend><label class="noir12IB">RECHERCHE </label><label class="gris12IB">AUTRE APPELANT</label>&nbsp;&nbsp;<img src="./img/APPELANT_SMALL.gif" align="top" />&nbsp;</legend>
 		<table cellpadding="4" cellspacing="2" border="0" align="left">
 			<tr>
 				
-				<td>
+				<td valign="top">
 					<table cellpadding="4" cellspacing="2" border="0">
 						<tr>
 							<td class="bleu11" nowrap="nowrap">Cl&eacute; de recherche</td>
@@ -47,7 +47,7 @@
 				</td>
 				
 				
-				<td width="35%">
+				<td valign="top">
 					<table cellpadding="4" cellspacing="2" width="100%" border="0">
 						
 						<tr>
@@ -60,37 +60,20 @@
 							<td class="bleu11"><input type="checkbox" name="ckb_numero_siret" checked="checked" disabled="disabled"> Num&eacute;ro de siret / s&eacute;rit&eacute; sociale</td>
 						</tr>
 					</table>
-				</td>				
+				</td>
 				
-				
-				
-				<td width="35%" valign="top">
-					<table cellpadding="4" cellspacing="2" width="100%" border="0">
+				<td valign="top">
+					<table cellpadding="4" cellspacing="5" width="100%" border="0">
 						<tr>
-							<td><input type="button"  value="Rechercher" onclick="Javascript:doRechercheAppelant()" class="bouton_bleu" style="width:90px"></td>
+							<td align="right"><input type="button"  value="Rechercher" onclick="Javascript:doRechercheAppelant()" class="bouton_bleu" style="width:90px"></td>
 						</tr>
 						<tr>
-							<td>&nbsp;</td>
+							<td align="right"><input type="button" value="Nouveau" <%if(modeCreation.equals("L")){%> disabled="disabled" title="Vous êtes en mode consultation."  <%}%> class="bouton_bleu" style="width:90px" onclick="Javascript:ficheAppelCreationAppelant()"></td>
 						</tr>
-						
-						<!-- 
-						<tr>
-							<td><input type="button"  value="Effacer" onclick="Javascript:document.forms[0].cle_recherche.value=''" class="bouton_bleu" style="width:90px"></td>
-						</tr>
-						 -->
-						
 						
 					</table>						
 				</td>
 				
-				<td width="35%" valign="top">
-					<table cellpadding="4" cellspacing="2" width="100%" border="0" >
-						<tr>
-							<td align="right"><input type="button" value="Nouveau" <%if(modeCreation.equals("L")){%> disabled="disabled" title="Vous êtes en mode consultation."  <%}%> class="bouton_bleu" style="width:90px" onclick="Javascript:ficheAppelCreationAppelant()"></td>
-						</tr>
-					</table>
-				</td>
-			
 			</tr>
 		</table>
 	</fieldset>

@@ -1,4 +1,5 @@
-<%@ page language="java" import="fr.igestion.crm.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.contrat.*,fr.igestion.crm.bean.pec.*,fr.igestion.crm.bean.scenario.*,fr.igestion.crm.bean.evenement.*,fr.igestion.annuaire.bean.*,java.util.*,java.io.*,java.net.*,org.apache.struts.action.DynaActionForm" contentType="text/html;charset=ISO-8859-1"%>
+<%@ page language="java" import="fr.igestion.crm.*,fr.igestion.crm.bean.*,fr.igestion.crm.bean.contrat.*,fr.igestion.crm.bean.pec.*,fr.igestion.crm.bean.scenario.*,fr.igestion.crm.bean.evenement.*,
+	fr.igestion.annuaire.bean.*,java.util.*,java.io.*,java.net.*,org.apache.struts.action.DynaActionForm,fr.igestion.crm.config.*" contentType="text/html;charset=ISO-8859-1"%>
 <%
 	Utilisateur utilisateur = (fr.igestion.annuaire.bean.Utilisateur) request.getSession().getAttribute("utilisateur");
 	TeleActeur teleActeur = (fr.igestion.crm.bean.TeleActeur) request.getSession().getAttribute(IContacts._var_session_teleActeur);
@@ -24,6 +25,7 @@
 	String consignes = (String) request.getSession().getAttribute("consignes");
 	String discours = (String) request.getSession().getAttribute("discours");
 	Appel appel = (Appel) request.getSession().getAttribute("appel");
+	Beneficiaire beneficiaire_aux = (Beneficiaire) session.getAttribute(FicheAppelAction._var_session_beneficiaire_aux);
 	String appel_id = "Aucun", date_appel = "Aucune";
 	if(appel != null && modeCreation.equals("E")){
 		appel_id = appel.getID();
@@ -43,9 +45,9 @@
 			img_pec = "<img src=\"./img/PEC_GRIS.gif\" border=\"0\"/>";
 		}
 		else{
-			Object objet = objet_appelant.getObjet();		
+			Object objet = objet_appelant.getObjet();	
 			
-			if( !(objet instanceof Beneficiaire && leModelePEC!=null && leModelePEC.getAppelantBeneficiairePermis() ) && 
+			if( !((objet instanceof Beneficiaire || beneficiaire_aux != null) && leModelePEC!=null && leModelePEC.getAppelantBeneficiairePermis()) && 
 				!(objet instanceof Appelant && 
 					  ( (((Appelant)objet).getTYPE_CODE().equalsIgnoreCase(SQLDataService._TYPE_PS) && leModelePEC!=null && leModelePEC.getAppelantFournisseurPermis() )
 							  ||

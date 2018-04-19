@@ -145,17 +145,8 @@
 							</tr>
 						</table>	
 					</td>
-					
-						
-						
 				</tr>
 			</table>
 		</td>
-		
-		<td valign="top" align="right">
-			<input type="button" value="Modifier" style="width:75px" class="bouton_bleu" onclick="Javascript:ficheAppelModifierAppelant(<%=id_appelant%>)">
-		</td>	
-		
-		
 	</tr>
 </table>

@@ -8,7 +8,7 @@ import java.util.Map;
 import fr.igestion.crm.bean.ModeleProcedureMail;
 import fr.igestion.crm.bean.pec.ModelePEC;
 
-public class Scenario {
+public class Scenario extends ItemScenario implements Cloneable {
    
     private String ID = "";
     private String LIBELLE = "";
@@ -21,6 +21,7 @@ public class Scenario {
     private Collection<ModeleProcedureMail> proceduresMail = null;
     private Collection<ModelePEC> modelesPEC = null;
     private Map<ModelePEC,Object> rattachementsPEC = new HashMap<ModelePEC,Object>();
+    private boolean existeEnBase = true;
     
     public Scenario() {
     }
@@ -112,5 +113,18 @@ public class Scenario {
     public void addRattachement( ModelePEC unModelePEC, Object item){
         rattachementsPEC.put(unModelePEC, item);
     }
+
+	public boolean isExisteEnBase() {
+		return existeEnBase;
+	}
+
+	public void setExisteEnBase(boolean existeEnBase) {
+		this.existeEnBase = existeEnBase;
+	}
+	
+	@Override
+	public Scenario clone() throws CloneNotSupportedException {
+		return (Scenario) super.clone();
+	}
     
 }

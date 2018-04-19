@@ -1,5 +1,7 @@
 package fr.igestion.crm.bean;
 
+import fr.igestion.crm.services.BackOfficeService;
+
 public class LibelleCode {
 
     private String code = "";
@@ -18,9 +20,15 @@ public class LibelleCode {
         this.code = code;
     }
 
-    public String getLibelle() {
-        return libelle;
-    }
+	public String getLibelle() {
+		try {
+			if (BackOfficeService.libellePourCode(alias) != null) {
+				return BackOfficeService.libellePourCode(alias);
+			}
+		} catch (Exception e) {
+		}
+		return libelle;
+	}
 
     public void setLibelle(String libelle) {
         this.libelle = libelle;
@@ -40,6 +48,15 @@ public class LibelleCode {
 
     public void setActif(String actif) {
         this.actif = actif;
+    }
+    
+    public String getEffet() { 
+        try {
+			return BackOfficeService.effetPourCode(alias);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+        return null;
     }
 
 }
