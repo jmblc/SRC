@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tiles-definitions PUBLIC "-//Apache Software Foundation//DTD Tiles Configuration 1.1//EN"
+                                   "http://jakarta.apache.org/struts/dtds/tiles-config_1_1.dtd">
+<tiles-definitions>
+  
+<definition name=".accueil.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Accueil"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/accueil.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".ficheAppel.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Fiche Appel"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/fiche_appel.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".fichesATraiter.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Fiches à Traiter"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/fiches_a_traiter.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".resultatCloture.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Fiche Appel"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/resultat_cloture.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".accueilAdministration.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_accueil.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".teleActeurs.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_teleActeurs.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".messages.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_messages.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".transferts.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_transferts.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".entitesGestionSensibles.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_entitesGestionSensibles.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".sessionsActives.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_sessionsActives.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".scenarios.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_scenarios.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".pec.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_pec.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".siteWeb.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_siteWeb.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".document.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_document.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".modele_pec.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_modele_pec.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".procedure_mail.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_procedure_mail.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".adresseGestion.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_adresseGestion.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".modele_procedure_mail.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_modele_procedure_mail.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+<definition name=".fichesLockees.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Administration"/>  
+	<put name="header" value="/header.jsp"/>
+	<put name="middle" value="/admin/admin_delockerFiches.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+
+<definition name=".ouvrir_fiche_from_externe.page" path="/layout/SimpleLayout.jsp">
+	<put name="titre" type="string" value="H.Contacts | Fiche Appel"/>  
+	<put name="header" value="/vide.jsp"/>
+	<put name="middle" value="/ouvrir_fiche_from_externe.jsp"/>
+	<put name="footer" value="/vide.jsp"/>
+</definition>
+
+ 
+</tiles-definitions>
